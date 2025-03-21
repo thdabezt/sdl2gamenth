@@ -1,5 +1,4 @@
-#ifndef Game_h
-#define Game_h
+#pragma once
 
 #include <SDL.h>
 
@@ -21,15 +20,15 @@ class Game {
         bool running(){
             return isRunning;
         }
-
+        void setRunning(bool running) { isRunning = running; }
+        static SDL_Renderer *renderer;
 
     private:
         int count = 0;
         bool isRunning;
         SDL_Window *window;
-        SDL_Renderer *renderer;
+        
 
 
 };
 
-#endif

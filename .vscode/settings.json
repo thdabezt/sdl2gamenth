@@ -1,5 +1,17 @@
 {
-    "files.associations": {
-        "iostream": "cpp"
-    }
+    "makefile.makePath": "C:/msys64/usr/bin/make.exe",
+    "makefile.configurations": [
+        {
+            "name": "Default",
+            "makeArgs": ["all"]
+        }
+    ],
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "c:\\Users\\Admin\\Documents\\Code\\Game",
+            "binaryPath": "c:\\Users\\Admin\\Documents\\Code\\Game\\game",
+            "binaryArgs": []
+        }
+    ],
+    
 }
