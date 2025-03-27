@@ -1,0 +1,3 @@
+Directory Tree (excluding .git and .vscode) 
+ 
++-- [DIR] .\sprites+-- [DIR] .\sprites\character+-- ametest.png+-- [DIR] .\sprites\enemy+-- enemy1.png+-- [DIR] .\sprites\map+-- dirt.png+-- grass.png+-- water.png+-- [DIR] .\src+-- [DIR] .\src\ECS+-- Components.h+-- ECS.h+-- PositionComponents.h+-- SpriteComponents.h+-- constants.h+-- game.cpp+-- game.h+-- GameObject.cpp+-- GameObject.h+-- main.cpp+-- map.cpp+-- map.h+-- TextureManager.cpp+-- TextureManager.h+-- directory_tree.txt+-- error.log+-- log.txt+-- makefile+-- README.md+-- tree.bat

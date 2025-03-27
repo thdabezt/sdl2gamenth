@@ -14,7 +14,7 @@ const int CHAR_W = 64;
 const int CHAR_H = 64;
 const int CHAR_X = 400;
 const int CHAR_Y = 300;
-const char* const playerSprites = "sprites/character/ametest.png";
+const char* const playerSprites = "sprites/character/player_anims.png";
 
 //ENEMY SETTINGS
 const int E1_W = 64;
@@ -22,3 +22,10 @@ const int E1_H = 64;
 const int E1_X = 300;
 const int E1_Y = 0;
 const char* const enemy1Sprites = "sprites/enemy/enemy1.png";
+
+//MAP SETTINGS
+const int TILE_SIZE = 32;
+const int MAP_WIDTH = 48;
+const int MAP_HEIGHT = 46;
+const char* const MAP = "sprites/map/mapss.png";
+

@@ -1,6 +1,12 @@
 #pragma once
 
 #include <SDL.h>
+#include <iostream>
+#include <vector>
+
+
+class AssetManager;
+class ColliderComponent;
 
 class Game {
     public:
@@ -21,11 +27,25 @@ class Game {
             return isRunning;
         }
         void setRunning(bool running) { isRunning = running; }
-        static SDL_Renderer *renderer;
 
+        
+        static SDL_Renderer *renderer;
+        static SDL_Event event;
+       
+        static bool isRunning;
+        static SDL_Rect camera;
+        static AssetManager* assets;
+
+        enum groupLabels : std::size_t{
+            groupMap,
+            groupPlayers,
+            groupColliders,
+            groupProjectiles,
+        };
+        
     private:
         int count = 0;
-        bool isRunning;
+        Uint32 lastShotTime = 0;
         SDL_Window *window;
         
 
