@@ -21,6 +21,20 @@ public:
             entity->destroy();
         }
     }
+    void setMaxHealth(int newMax) {
+        maxHealth = newMax;
+        // Make sure current health doesn't exceed maximum
+        if (health > maxHealth) {
+            health = maxHealth;
+        }
+    }
+    void setHealth(int Health) {
+        health = Health;
+        // Make sure current health doesn't exceed maximum
+        if (health > maxHealth) {
+            health = maxHealth;
+        }
+    }
     int getMaxHealth() const {
         return maxHealth;
     }

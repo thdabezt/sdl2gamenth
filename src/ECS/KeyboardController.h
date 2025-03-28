@@ -20,7 +20,7 @@
 //     void update() override {
 //         // Store previous velocity to detect changes
 //         Vector2D prevVelocity = transform->velocity;
-        
+
 //         // Handle key events
 //         handleKeyEvents();
         
@@ -165,9 +165,9 @@ private:
         // Only handle one-time events here
         if (Game::event.type == SDL_KEYDOWN) {
             switch (Game::event.key.keysym.sym) {
-            case SDLK_e:
-                Game::instance->rezero();
-                break;
+            // case SDLK_e:
+            //     Game::instance->rezero();
+            //     break;
             case SDLK_ESCAPE:
                 // Don't quit game, just signal scene change
                 SceneManager::instance->switchToScene(SceneType::Menu);

@@ -2,99 +2,111 @@
 #include "../AssetManager.h"
 
 void WeaponComponent::init() {
-    transform = &entity->getComponent<TransformComponent>();
-    collider = &entity->getComponent<ColliderComponent>();
-    lastShotTime = SDL_GetTicks(); // Initialize when component is created
+    // Get component pointers (Requires TransformComponent.h/ColliderComponent.h included via Components.h)
+    if (entity->hasComponent<TransformComponent>()) {
+        transform = &entity->getComponent<TransformComponent>();
+    } else { std::cerr << "WeaponComponent missing TransformComponent!" << std::endl; }
+
+    if (entity->hasComponent<ColliderComponent>()) {
+        collider = &entity->getComponent<ColliderComponent>();
+    } else { std::cerr << "WeaponComponent missing ColliderComponent!" << std::endl; }
+
+    lastShotTime = SDL_GetTicks(); // Initialize timer correctly
+    burstShotsRemaining = 0; // Ensure starting state
 }
 
+// --- Rewritten Update Logic for Burst Fire ---
 void WeaponComponent::update() {
-    // Check if the weapon can fire (cooldown elapsed)
     Uint32 currentTime = SDL_GetTicks();
-    
-    // Get current mouse position for aiming
+
+    // 1. Check if currently in a burst sequence
+    if (burstShotsRemaining > 0) {
+        // Check if it's time for the next shot in the burst
+        if (currentTime >= nextBurstShotTime) {
+            if (transform && collider) { // Ensure components are valid before shooting
+                 shoot(); // Fire one volley (projectilesPerShot simultaneous projectiles)
+                 burstShotsRemaining--; // Decrement remaining shots in burst
+                 // Set time for the *next* shot in the burst
+                 nextBurstShotTime = currentTime + burstDelay;
+            } else {
+                // Missing components, cancel burst
+                 burstShotsRemaining = 0;
+            }
+        }
+    }
+    // 2. Else, check if ready to start a NEW burst (main cooldown)
+    else if (currentTime > lastShotTime + fireRate) {
+        // Start a new burst
+        burstShotsRemaining = shotsPerBurst;
+        // Schedule the first shot immediately (or add burstDelay if you want a delay before the first shot too)
+        nextBurstShotTime = currentTime;
+        // Record the time this burst sequence started (for the main cooldown)
+        lastShotTime = currentTime;
+
+        // We trigger the first shot immediately by letting the logic loop back to step 1
+        // OR call shoot() directly here if preferred, adjusting burstShotsRemaining and nextBurstShotTime accordingly.
+        // Let's trigger it immediately for simplicity here:
+        if(burstShotsRemaining > 0 && transform && collider) {
+            shoot();
+            burstShotsRemaining--;
+            nextBurstShotTime = currentTime + burstDelay; // Schedule the *next* one
+        }
+    }
+
+    // Update mouse position regardless of firing state (for aiming)
     int mouseX, mouseY;
     SDL_GetMouseState(&mouseX, &mouseY);
-    
-    // Add camera offset to get world coordinates
     Game::mouseX = mouseX + Game::camera.x;
     Game::mouseY = mouseY + Game::camera.y;
-    
-    // Auto-fire when cooldown elapsed (no mouse click required)
-    if (currentTime > lastShotTime + fireRate) {
-        shoot();
-        lastShotTime = currentTime;
-    }
 }
 
+
+// --- shoot() method remains the same ---
+// It fires one volley of 'projectilesPerShot' projectiles with spread
 void WeaponComponent::shoot() {
-    // Get projectile start position from collider
-    Vector2D projectilePosition;
-    projectilePosition.x = collider->collider.x;
-    projectilePosition.y = collider->collider.y;
-    
-    // Calculate direction to mouse cursor
-    Vector2D targetPosition(Game::mouseX, Game::mouseY);
-    Vector2D direction = targetPosition - projectilePosition;
-    
-    // Normalize and set speed
-    Vector2D baseVelocity = direction.Normalize() * projectileSpeed;
-    
-    // Debug output
-    std::cout << "Auto-firing weapon toward: (" << Game::mouseX << ", " << Game::mouseY << ")" << std::endl;
-    
-    // Single projectile case
-    if (projectilesPerShot == 1) {
-        createProjectile(projectilePosition, baseVelocity);
+    // Check required components again before dereferencing
+    if (!transform || !collider) {
+        std::cerr << "WeaponComponent::shoot() called without valid transform or collider!" << std::endl;
         return;
     }
-    
-    // Multiple projectiles with spread
-    float angleStep = 0;
-    if (projectilesPerShot > 1) {
-        angleStep = (spreadAngle * 2) / (projectilesPerShot - 1);
+
+    Vector2D projectilePosition;
+    projectilePosition.x = static_cast<float>(collider->collider.x) + collider->collider.w / 2.0f; // Center start pos
+    projectilePosition.y = static_cast<float>(collider->collider.y) + collider->collider.h / 2.0f;
+
+    Vector2D targetPosition(static_cast<float>(Game::mouseX), static_cast<float>(Game::mouseY));
+    Vector2D direction = targetPosition - projectilePosition;
+
+    // Prevent division by zero if direction is zero vector
+    if (direction.x == 0.0f && direction.y == 0.0f) {
+        direction.y = -1.0f; // Default direction (e.g., straight up)
     }
-    
-    for (int i = 0; i < projectilesPerShot; i++) {
-        float currentAngle = -spreadAngle + (i * angleStep);
-        
-        // Calculate rotated velocity
-        Vector2D rotatedVelocity;
-        rotatedVelocity.x = baseVelocity.x * cos(currentAngle) - baseVelocity.y * sin(currentAngle);
-        rotatedVelocity.y = baseVelocity.x * sin(currentAngle) + baseVelocity.y * cos(currentAngle);
-        rotatedVelocity = rotatedVelocity.Normalize() * projectileSpeed;
-        
-        // Create the projectile
-        createProjectile(projectilePosition, rotatedVelocity);
+
+    Vector2D baseVelocity = direction.Normalize() * projectileSpeed;
+
+    if (projectilesPerShot <= 1) {
+        createProjectile(projectilePosition, baseVelocity);
+    } else {
+        float halfSpread = spreadAngle / 2.0f;
+        float angleStep = (projectilesPerShot > 1) ? spreadAngle / (projectilesPerShot - 1) : 0.0f;
+
+        for (int i = 0; i < projectilesPerShot; i++) {
+            float currentAngle = -halfSpread + (i * angleStep); // Centered spread
+
+            Vector2D rotatedVelocity;
+            float cosA = cos(currentAngle);
+            float sinA = sin(currentAngle);
+            rotatedVelocity.x = baseVelocity.x * cosA - baseVelocity.y * sinA;
+            rotatedVelocity.y = baseVelocity.x * sinA + baseVelocity.y * cosA;
+            // No need to re-normalize if baseVelocity has correct speed and rotation preserves length
+            // rotatedVelocity = rotatedVelocity.Normalize() * projectileSpeed; // Re-normalize only if necessary
+
+            createProjectile(projectilePosition, rotatedVelocity);
+        }
     }
 }
 
-// Helper to create projectile - this is where we actually call AssetManager
+// --- createProjectile() method remains the same ---
 void WeaponComponent::createProjectile(Vector2D position, Vector2D velocity) {
-    // Access AssetManager from the cpp file to avoid circular dependency
-    Game::assets->CreateProjectile(position, velocity, projectileRange, damage, projectileSize, projectileTexture);
-
-}
-
-void WeaponComponent::onEnemyDefeated() {
-    // Increase damage by 1 each time an enemy is defeated
-    damage += 1;
-    
-    // Decrease fire rate (make it faster) every 3 enemies
-    static int enemiesDefeated = 0;
-    enemiesDefeated++;
-    
-    if (enemiesDefeated % 3 == 0) {
-        // Reduce fire rate by 5% (makes it shoot faster)
-        fireRate = std::max(50, static_cast<int>(fireRate * 0.95f));
-    }
-    
-    // Increase projectile count periodically
-    if (enemiesDefeated % 10 == 0 && projectilesPerShot < 5) {
-        projectilesPerShot += 1;
-    }
-    
-    // Log the weapon upgrade
-    std::cout << "Weapon upgraded! Damage: " << damage 
-              << ", Fire Rate: " << fireRate 
-              << ", Projectiles: " << projectilesPerShot << std::endl;
+    Game::assets->CreateProjectile(position, velocity, projectileRange, damage, projectileSize, projectileTexture, projectilePierce);
 }

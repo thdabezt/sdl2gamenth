@@ -1,5 +1,4 @@
 #pragma once
-
 #include "ECS.h"
 #include "../Collision.h"
 #include "../Vector2D.h"
@@ -14,13 +13,26 @@ private:
     SDL_Rect detectionRect;
     int detectionRange;
     float speed;
-
+    
+    // Contact damage properties
+    int contactDamage;
+    Uint32 lastDamageTime = 0;
+    const Uint32 damageInterval = 1000; // Damage cooldown in ms (1 second)
+    int expValue;
     Vector2D* playerPosition; // Pointer to the player's position
+    Entity* playerEntity; // Reference to player entity for damage
 
 public:
-    EnemyAIComponent(int range, float moveSpeed, Vector2D* playerPos)
-        : detectionRange(range), speed(moveSpeed), playerPosition(playerPos) {}
-
+    EnemyAIComponent(int range, float moveSpeed, Vector2D* playerPos, int damage = 10, int exp = 1, Entity* player = nullptr)
+        : detectionRange(range), 
+          speed(moveSpeed), 
+          playerPosition(playerPos),
+          contactDamage(damage),
+          expValue(exp),
+          playerEntity(player) {}
+    int getExpValue() const { return expValue; }
+    void setExpValue(int value) { expValue = value; }
+          
     void init() override {
         if (!entity->hasComponent<TransformComponent>()) {
             entity->addComponent<TransformComponent>();
@@ -48,7 +60,49 @@ public:
         detectionRect.x = collider->collider.x - (detectionRect.w - collider->collider.w) / 2;
         detectionRect.y = collider->collider.y - (detectionRect.h - collider->collider.h) / 2;
 
-        SDL_Rect playerRect = {static_cast<int>(playerPosition->x), static_cast<int>(playerPosition->y), 32, 32}; // Assuming player size is 32x32
+        // Check for player collision to apply damage
+        if (playerEntity && playerEntity->hasComponent<ColliderComponent>() && 
+            playerEntity->hasComponent<HealthComponent>()) {
+            
+            SDL_Rect playerCol = playerEntity->getComponent<ColliderComponent>().collider;
+            
+            // If enemy is colliding with player, apply damage on interval
+            if (Collision::AABB(collider->collider, playerCol)) {
+                Uint32 currentTime = SDL_GetTicks();
+                if (currentTime > lastDamageTime + damageInterval) {
+                    // Apply damage to player
+                    playerEntity->getComponent<HealthComponent>().takeDamage(contactDamage);
+                    
+                    // // Flash the player sprite if it has a SpriteComponent
+                    // if (playerEntity->hasComponent<SpriteComponent>()) {
+                    //     playerEntity->getComponent<SpriteComponent>().isHit = true;
+                    //     playerEntity->getComponent<SpriteComponent>().hitTime = currentTime;
+                    // }
+                    
+                    // // Apply knockback to the player
+                    // if (playerEntity->hasComponent<TransformComponent>()) {
+                    //     // Calculate direction from enemy to player
+                    //     Vector2D knockbackDir = playerEntity->getComponent<TransformComponent>().position - transform->position;
+                    //     knockbackDir = knockbackDir.Normalize();
+                        
+                    //     // Apply knockback
+                    //     float knockbackForce = 20.0f;
+                    //     playerEntity->getComponent<TransformComponent>().position.x += knockbackDir.x * knockbackForce;
+                    //     playerEntity->getComponent<TransformComponent>().position.y += knockbackDir.y * knockbackForce;
+                    // }
+                    
+                    // Output damage info
+                    // std::cout << "Player took " << contactDamage << " damage! Health: " 
+                    //           << playerEntity->getComponent<HealthComponent>().getHealth() << "/"
+                    //           << playerEntity->getComponent<HealthComponent>().getMaxHealth() << std::endl;
+                              
+                    lastDamageTime = currentTime;
+                }
+            }
+        }
+
+        // Regular enemy movement AI
+        SDL_Rect playerRect = {static_cast<int>(playerPosition->x), static_cast<int>(playerPosition->y), 32, 32};
         if (Collision::AABB(playerRect, detectionRect)) {
             Vector2D direction = *playerPosition - transform->position;
             direction = direction.Normalize();
@@ -86,4 +140,8 @@ public:
         // Reset the render color to white
         SDL_SetRenderDrawColor(Game::renderer, 255, 255, 255, 255);
     }
+    
+    // Getter/setter for contact damage
+    int getContactDamage() const { return contactDamage; }
+    void setContactDamage(int damage) { contactDamage = damage; }
 };

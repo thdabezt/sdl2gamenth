@@ -70,7 +70,12 @@ public:
             collider.w = colliderWidth;
             collider.h = colliderHeight;
         }
-        else if (tag == "enemy") {
+        else if (tag == "zombie" || tag == "aligator1" || tag == "aligator2" || 
+            tag == "bear1" || tag == "bear2" || tag == "eliteskeleton_shield" || 
+            tag == "enemy1" || tag == "ina1" || tag == "ina2" || tag == "ina3" || 
+            tag == "kfc1" || tag == "kfc2" || 
+            tag == "skeleton1" || tag == "skeleton2" || tag == "skeleton3" || 
+            tag == "skeleton4" || tag == "skeleton5" || tag == "skeleton_shield") {
             collider.x = static_cast<int>(transform->position.x) + 32;
             collider.y = static_cast<int>(transform->position.y) + 60;
             collider.w = colliderWidth;

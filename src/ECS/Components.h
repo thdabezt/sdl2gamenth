@@ -8,4 +8,6 @@
 #include "ProjectileComponent.h"
 #include "HealthComponent.h"
 #include "WeaponComponent.h"
+#include "Player.h"
+#include "SpellComponent.h" 
 // #include "EnemyAi.h"

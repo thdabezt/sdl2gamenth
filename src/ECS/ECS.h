@@ -74,9 +74,9 @@ class Entity {
         
         if (!isDestroyed) {
             active = false; 
-            std::cout << "Entity Destroyed!" << std::endl; // Add this log
+            // std::cout << "Entity Destroyed!" << std::endl; // Add this log
         } else {
-            std::cout << "Entity already destroyed!" << std::endl; // Add this log
+            // std::cout << "Entity already destroyed!" << std::endl; // Add this log
         }
     }
 

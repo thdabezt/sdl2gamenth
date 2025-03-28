@@ -7,18 +7,17 @@
 
 
 class AssetManager {
-public:
-    AssetManager(Manager* man);
-    ~AssetManager();
+    public:
+        AssetManager(Manager* man);
+        ~AssetManager();
     
-    // Update CreateProjectile to include damage
-void CreateProjectile(Vector2D pos, Vector2D vel, int range, int damage, int size, std::string id);
+        // --- Update CreateProjectile signature ---
+        void CreateProjectile(Vector2D pos, Vector2D vel, int range, int damage, int size, std::string id, int pierce = 1); // Add pierce
     
-    // Texture management
-    void AddTexture(std::string id, const char* path);
-    SDL_Texture* GetTexture(std::string id);
-
-private:
-    Manager* manager;
-    std::map<std::string, SDL_Texture*> textures;
-};
+        void AddTexture(std::string id, const char* path);
+        SDL_Texture* GetTexture(std::string id);
+    
+    private:
+        Manager* manager;
+        std::map<std::string, SDL_Texture*> textures;
+    };

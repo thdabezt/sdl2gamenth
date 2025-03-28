@@ -126,7 +126,8 @@ int main(int argc, char* argv[]) {
     SDL_Event event;
     
     // Main game loop
-    while (running) {
+
+while (running) {
     frameStart = SDL_GetTicks();
     
     // Handle events
@@ -134,11 +135,15 @@ int main(int argc, char* argv[]) {
         if (event.type == SDL_QUIT) {
             running = false;
         }
-        Game::event = event; // Make sure event is copied to the static event
+        
+        // Copy the event to the static Game event
+        Game::event = event;
+        
+        // Process events in the scene manager
         sceneManager.handleEvents(event);
     }
     
-    // Update and render
+    // Update and render through the scene manager
     sceneManager.update();
     sceneManager.render();
     
@@ -149,19 +154,19 @@ int main(int argc, char* argv[]) {
     }
 }
 
-    // Clean up resources in the correct order
-    std::cout << "Cleaning up all resources..." << std::endl;
+// Clean up resources in the correct order
+std::cout << "Cleaning up all resources..." << std::endl;
 
-    // First clean up scenes which might still reference the renderer
-    sceneManager.clean();
+// First clean up scenes which might still reference the renderer
+sceneManager.clean();
 
-    // Clean up the shared renderer and window last
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    Game::renderer = nullptr;
+// Clean up the shared renderer and window last
+SDL_DestroyRenderer(renderer);
+SDL_DestroyWindow(window);
+Game::renderer = nullptr;
 
-    TTF_Quit();
-    SDL_Quit();
-    
-    return 0;
+TTF_Quit();
+SDL_Quit();
+
+return 0;
 }

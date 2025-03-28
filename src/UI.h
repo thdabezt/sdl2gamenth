@@ -5,21 +5,16 @@
 #include <string>
 #include <vector>
 
-// Forward declarations - prevents circular dependencies
+// Forward declarations
 class Entity;
 class Vector2D;
+class Player;  // Add Player forward declaration
 
 class UIManager {
 private:
     SDL_Renderer* renderer;
     TTF_Font* font = nullptr;
     TTF_Font* largeFont = nullptr;
-    int enemiesDefeated = 0;
-    
-    // Level system
-    int playerLevel = 1;
-    int playerExp = 0;
-    int expToNextLevel = 10; // Initial value: 1 * 10
     
     // UI positions and dimensions
     const int HEALTH_BAR_WIDTH = 200;
@@ -45,35 +40,22 @@ private:
     // Helper methods
     SDL_Texture* renderTextToTexture(const std::string& text, SDL_Color color, TTF_Font* font, int& width, int& height);
     void drawText(const std::string& text, int x, int y, SDL_Color color, TTF_Font* fontToUse = nullptr);
-    void renderSimpleUI(Entity& player); // Fallback when fonts aren't available
+    void renderSimpleUI(Player* player); // Updated to use Player
     
 public:
     UIManager(SDL_Renderer* renderer);
     ~UIManager();
     
     void init();
-    void incrementEnemiesDefeated() { 
-        enemiesDefeated++; 
-        
-        // Add experience when defeating an enemy
-        addExperience(playerLevel * 10);
-    }
-    int getEnemiesDefeated() const { return enemiesDefeated; }
     bool hasFonts() const { return font != nullptr && largeFont != nullptr; }
     
-    // Level system methods
-    void addExperience(int exp);
-    int getPlayerLevel() const { return playerLevel; }
-    int getPlayerExp() const { return playerExp; }
-    int getExpToNextLevel() const { return expToNextLevel; }
-    float getExpPercentage() const { return static_cast<float>(playerExp) / expToNextLevel; }
-    
-    // Main render methods
-    void renderPlayerHealthBar(Entity& player);
-    void renderWeaponStats(Entity& player);
-    void renderPlayerStats();
-    void renderExpBar();
-    void renderUI(Entity& player);
+    // Main render methods - updated to use Player
+    void renderPlayerHealthBar(Player* player);
+    void renderWeaponStats(Player* player);
+    void renderPlayerStats(Player* player);
+    void renderExpBar(Player* player);
+
+    void renderUI(Player* player);  // Updated to use Player directly
     
     // Clear cached text
     void clearCache();

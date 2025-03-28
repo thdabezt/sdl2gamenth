@@ -1,7 +1,8 @@
 #include "UI.h"
 #include "game.h"
 #include "Vector2D.h"
-#include "ECS/Components.h"
+
+#include "ECS/Player.h"
 #include <sstream>
 #include <iostream>
 
@@ -111,21 +112,37 @@ void UIManager::drawText(const std::string& text, int x, int y, SDL_Color color,
     }
 }
 
-// Update this method:
-
-void UIManager::renderSimpleUI(Entity& player) {
-    if (!player.hasComponent<HealthComponent>()) {
+void UIManager::renderSimpleUI(Player* player) {
+    if (!player) return;
+    
+    Entity& playerEntity = player->getEntity();
+    if (!playerEntity.hasComponent<HealthComponent>()) {
         return;
     }
     
-    const HealthComponent& health = player.getComponent<HealthComponent>();
-    
-    // Position in top right corner
-    int xPos = Game::camera.w - HEALTH_BAR_WIDTH - UI_PADDING;
+    // Position in top left corner
+    int xPos = UI_PADDING;
     int yPos = UI_PADDING;
     
-    // XP Bar (above health)
-    int expBarY = yPos - 30;
+    // Health bar (at the top)
+    SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255);
+    SDL_Rect bgRect = {xPos - 2, yPos - 2, HEALTH_BAR_WIDTH + 4, HEALTH_BAR_HEIGHT + 4};
+    SDL_RenderFillRect(renderer, &bgRect);
+    
+    SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+    SDL_RenderDrawRect(renderer, &bgRect);
+    
+    float healthPercent = static_cast<float>(player->getHealth()) / player->getMaxHealth();
+    int currentBarWidth = static_cast<int>(HEALTH_BAR_WIDTH * healthPercent);
+    
+    int r = static_cast<int>(255 * (1 - healthPercent));
+    int g = static_cast<int>(255 * healthPercent);
+    SDL_SetRenderDrawColor(renderer, r, g, 0, 255);
+    SDL_Rect healthRect = {xPos, yPos, currentBarWidth, HEALTH_BAR_HEIGHT};
+    SDL_RenderFillRect(renderer, &healthRect);
+    
+    // XP Bar (below health)
+    int expBarY = yPos + HEALTH_BAR_HEIGHT + 10;
     SDL_SetRenderDrawColor(renderer, 30, 10, 40, 255);
     SDL_Rect expBgRect = {xPos - 2, expBarY - 2, HEALTH_BAR_WIDTH + 4, HEALTH_BAR_HEIGHT + 4};
     SDL_RenderFillRect(renderer, &expBgRect);
@@ -133,46 +150,48 @@ void UIManager::renderSimpleUI(Entity& player) {
     SDL_SetRenderDrawColor(renderer, 140, 80, 200, 255);
     SDL_RenderDrawRect(renderer, &expBgRect);
     
-    float expPercent = getExpPercentage();
+    float expPercent = player->getExperiencePercentage();
     int currentExpWidth = static_cast<int>(HEALTH_BAR_WIDTH * expPercent);
     
     SDL_SetRenderDrawColor(renderer, 130, 30, 240, 255);
     SDL_Rect expRect = {xPos, expBarY, currentExpWidth, HEALTH_BAR_HEIGHT};
     SDL_RenderFillRect(renderer, &expRect);
     
-    // Health bar (existing code)
-    // (rest of the method remains the same)
+    // Weapon stats area
+    yPos = expBarY + HEALTH_BAR_HEIGHT + 20;
+    SDL_SetRenderDrawColor(renderer, 60, 60, 100, 255);
+    SDL_Rect weaponRect = {xPos, yPos, HEALTH_BAR_WIDTH, 100};
+    SDL_RenderFillRect(renderer, &weaponRect);
+    SDL_SetRenderDrawColor(renderer, 120, 120, 200, 255);
+    SDL_RenderDrawRect(renderer, &weaponRect);
     
-    // Add level indicator box
-    yPos += HEALTH_BAR_HEIGHT + 120 + 50;
+    // Level indicator box
+    yPos += 120;
     SDL_SetRenderDrawColor(renderer, 60, 10, 80, 255);
     SDL_Rect levelRect = {xPos, yPos, HEALTH_BAR_WIDTH, 40};
     SDL_RenderFillRect(renderer, &levelRect);
     SDL_SetRenderDrawColor(renderer, 180, 100, 255, 255);
     SDL_RenderDrawRect(renderer, &levelRect);
     
-    // Draw level indicator block
+    // Draw level indicator blocks
     int blockWidth = 20;
     int blockPadding = 5;
     int blockStart = xPos + 10;
+    int level = player->getLevel();
     
-    for (int i = 0; i < std::min(playerLevel, 8); i++) {
+    for (int i = 0; i < std::min(level, 8); i++) {
         SDL_Rect levelBlock = {blockStart + (i * (blockWidth + blockPadding)), yPos + 10, blockWidth, 20};
         SDL_SetRenderDrawColor(renderer, 180, 100, 255, 255);
         SDL_RenderFillRect(renderer, &levelBlock);
     }
 }
 
-void UIManager::renderPlayerHealthBar(Entity& player) {
-    if (!player.hasComponent<HealthComponent>()) {
-        return;
-    }
+void UIManager::renderPlayerHealthBar(Player* player) {
+    if (!player) return;
     
-    const HealthComponent& health = player.getComponent<HealthComponent>();
-    
-    // Position in top right corner
-    int xPos = Game::camera.w - HEALTH_BAR_WIDTH - UI_PADDING;
-    int yPos = UI_PADDING;
+    // Position in top left corner
+    int xPos = UI_PADDING;
+    int yPos = UI_PADDING; // At the very top
     
     // Draw bar label
     SDL_Color white = {255, 255, 255, 255};
@@ -188,7 +207,7 @@ void UIManager::renderPlayerHealthBar(Entity& player) {
     SDL_RenderDrawRect(renderer, &bgRect);
     
     // Calculate health percentage
-    float healthPercent = static_cast<float>(health.getHealth()) / health.getMaxHealth();
+    float healthPercent = static_cast<float>(player->getHealth()) / player->getMaxHealth();
     int currentBarWidth = static_cast<int>(HEALTH_BAR_WIDTH * healthPercent);
     
     // Draw health bar with gradient from green to red
@@ -200,20 +219,23 @@ void UIManager::renderPlayerHealthBar(Entity& player) {
     
     // Draw health text
     std::stringstream ss;
-    ss << health.getHealth() << "/" << health.getMaxHealth();
+    ss << player->getHealth() << "/" << player->getMaxHealth();
     drawText(ss.str(), xPos + HEALTH_BAR_WIDTH/2 - 20, yPos + 4, white);
 }
 
-void UIManager::renderWeaponStats(Entity& player) {
-    if (!player.hasComponent<WeaponComponent>()) {
+void UIManager::renderWeaponStats(Player* player) {
+    if (!player) return;
+    
+    Entity& playerEntity = player->getEntity();
+    if (!playerEntity.hasComponent<WeaponComponent>()) {
         return;
     }
     
-    const WeaponComponent& weapon = player.getComponent<WeaponComponent>();
+    const WeaponComponent& weapon = playerEntity.getComponent<WeaponComponent>();
     
-    // Position below health bar
-    int xPos = Game::camera.w - HEALTH_BAR_WIDTH - UI_PADDING;
-    int yPos = UI_PADDING + HEALTH_BAR_HEIGHT + 20;
+    // Position below EXP bar
+    int xPos = UI_PADDING;
+    int yPos = UI_PADDING + HEALTH_BAR_HEIGHT*2 + 35;
     
     SDL_Color white = {255, 255, 255, 255};
     SDL_Color gold = {255, 215, 0, 255};
@@ -249,12 +271,12 @@ void UIManager::renderWeaponStats(Entity& player) {
     drawText(ss.str(), xPos, yPos, white);
 }
 
-// Update these existing methods:
-
-void UIManager::renderPlayerStats() {
+void UIManager::renderPlayerStats(Player* player) {
+    if (!player) return;
+    
     // Position below weapon stats
-    int xPos = Game::camera.w - HEALTH_BAR_WIDTH - UI_PADDING;
-    int yPos = UI_PADDING + HEALTH_BAR_HEIGHT + 20 + (5 * STAT_LINE_HEIGHT);
+    int xPos = UI_PADDING;
+    int yPos = UI_PADDING + HEALTH_BAR_HEIGHT*2 + 35 + (5 * STAT_LINE_HEIGHT);
     
     SDL_Color white = {255, 255, 255, 255};
     SDL_Color lightBlue = {100, 200, 255, 255};
@@ -265,76 +287,35 @@ void UIManager::renderPlayerStats() {
     // Show enemies defeated
     yPos += 30;
     std::stringstream ss;
-    ss << "Enemies Defeated: " << enemiesDefeated;
+    ss << "Enemies Defeated: " << player->getEnemiesDefeated();
     drawText(ss.str(), xPos, yPos, white);
     
     // Show player level
     yPos += STAT_LINE_HEIGHT;
     ss.str("");
-    ss << "Player Level: " << playerLevel;
+    ss << "Player Level: " << player->getLevel();
     drawText(ss.str(), xPos, yPos, white);
     
     // Show total experience gained
     yPos += STAT_LINE_HEIGHT;
     ss.str("");
-    ss << "Experience: " << playerExp << "/" << expToNextLevel;
+    ss << "Experience: " << player->getExperience() << "/" << player->getExperienceToNextLevel();
     drawText(ss.str(), xPos, yPos, white);
 }
 
-void UIManager::renderUI(Entity& player) {
-    if (!hasFonts()) {
-        // Use the fallback rendering if fonts aren't available
-        renderSimpleUI(player);
-        return;
-    }
+void UIManager::renderExpBar(Player* player) {
+    if (!player) return;
     
-    // Normal text-based UI
-    renderExpBar();  // Add XP bar above health
-    renderPlayerHealthBar(player);
-    renderWeaponStats(player);
-    renderPlayerStats();
-}
-
-void UIManager::clearCache() {
-    for (auto& cache : textCache) {
-        if (cache.texture) {
-            SDL_DestroyTexture(cache.texture);
-            cache.texture = nullptr;
-        }
-    }
-    textCache.clear();
-}
-// Add this method implementation to your file:
-
-void UIManager::addExperience(int exp) {
-    playerExp += exp;
-    
-    // Check if player has enough experience to level up
-    while (playerExp >= expToNextLevel) {
-        // Level up!
-        playerExp -= expToNextLevel;
-        playerLevel++;
-        
-        // Calculate new experience required for next level
-        expToNextLevel = playerLevel * 10;
-        
-        // Log level up message
-        std::cout << "LEVEL UP! Now level " << playerLevel << std::endl;
-    }
-}
-
-// Add this method to render the experience bar
-void UIManager::renderExpBar() {
-    // Position above the health bar
-    int xPos = Game::camera.w - HEALTH_BAR_WIDTH - UI_PADDING;
-    int yPos = UI_PADDING - 30;  // Above health bar
+    // Position at below health bar
+    int xPos = UI_PADDING;
+    int yPos = UI_PADDING + HEALTH_BAR_HEIGHT + 10;  // Below health bar
     
     SDL_Color white = {255, 255, 255, 255};
     SDL_Color purple = {180, 100, 255, 255};
     
     // Draw level text
     std::stringstream ss;
-    ss << "LEVEL " << playerLevel;
+    ss << "LEVEL " << player->getLevel();
     drawText(ss.str(), xPos, yPos - 24, purple, largeFont);
     
     // Draw background (dark purple)
@@ -347,7 +328,7 @@ void UIManager::renderExpBar() {
     SDL_RenderDrawRect(renderer, &bgRect);
     
     // Calculate exp percentage
-    float expPercent = getExpPercentage();
+    float expPercent = player->getExperiencePercentage();
     int currentBarWidth = static_cast<int>(HEALTH_BAR_WIDTH * expPercent);
     
     // Draw exp bar (purple gradient)
@@ -357,6 +338,32 @@ void UIManager::renderExpBar() {
     
     // Draw exp text
     ss.str("");
-    ss << playerExp << "/" << expToNextLevel << " EXP";
+    ss << player->getExperience() << "/" << player->getExperienceToNextLevel() << " EXP";
     drawText(ss.str(), xPos + HEALTH_BAR_WIDTH/2 - 30, yPos + 4, white);
+}
+
+void UIManager::renderUI(Player* player) {
+    if (!player) return;
+    
+    if (!hasFonts()) {
+        // Use the fallback rendering if fonts aren't available
+        renderSimpleUI(player);
+        return;
+    }
+    
+    // Normal text-based UI
+    renderPlayerHealthBar(player);
+    renderExpBar(player);
+    renderWeaponStats(player);
+    renderPlayerStats(player);
+}
+
+void UIManager::clearCache() {
+    for (TextCache& cache : textCache) {
+        if (cache.texture) {
+            SDL_DestroyTexture(cache.texture);
+            cache.texture = nullptr;
+        }
+    }
+    textCache.clear();
 }
