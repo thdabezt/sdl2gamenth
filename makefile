@@ -6,14 +6,14 @@ CFLAGS = -Wall -Wextra -g
 
 # SDL2 include and library paths
 SDL2_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null || echo "-IC:/msys64/mingw64/include/SDL2 -IC:/Users/Admin/Documents/Code/Game/src/ECS -Dmain=SDL_main")
-SDL2_LDFLAGS = -LC:/msys64/mingw64/lib -lmingw32 -mwindows -lSDL2main -lSDL2 -lSDL2_image
+SDL2_LDFLAGS = -LC:/msys64/mingw64/lib -lmingw32 -mwindows -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer
 
 # Directories
 SRC_DIR = src
 BUILD_DIR = build
 
 # Find all .cpp files in src/ and src/ECS/
-SRC := $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(SRC_DIR)/ECS/*.cpp)
+SRC := $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(SRC_DIR)/ECS/*.cpp) $(wildcard $(SRC_DIR)/Scene/*.cpp)
 OBJ := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(SRC))
 
 # Output binary name

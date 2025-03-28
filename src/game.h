@@ -3,13 +3,17 @@
 #include <SDL.h>
 #include <iostream>
 #include <vector>
-
+#include "Vector2D.h"
+#include "ECS/ECS.h"
 
 class AssetManager;
+class Entity;
+class Map;
 class ColliderComponent;
 
 class Game {
     public:
+        static Game* instance;
         Game();
 
         ~Game();
@@ -26,28 +30,36 @@ class Game {
         bool running(){
             return isRunning;
         }
+        void rezero();
         void setRunning(bool running) { isRunning = running; }
-
         
+        void spawnEnemy();
         static SDL_Renderer *renderer;
         static SDL_Event event;
-       
+        Entity& getPlayer();
         static bool isRunning;
+        // Add these methods
+        void cleanExceptRenderer();
+        static void cleanupRenderer();
         static SDL_Rect camera;
         static AssetManager* assets;
-
+        static int mouseX;
+        static int mouseY;
         enum groupLabels : std::size_t{
             groupMap,
             groupPlayers,
             groupColliders,
             groupProjectiles,
+            groupEnemies,
         };
+        void renderHealthBar(Entity& entity, Vector2D position);
         
     private:
         int count = 0;
-        Uint32 lastShotTime = 0;
+        Uint32 lastShotTime = 0;       // Timer for projectiles
+        Uint32 lastEnemySpawnTime = 0; // Timer for enemy spawning
         SDL_Window *window;
-        
+
 
 
 };

@@ -38,7 +38,8 @@ using ComponentArray = std::array<Component*, maxComponents>;
 
 class Component {
 public:
-    Entity* entity;
+    Entity* entity; 
+    
 
     virtual void init() {}
     virtual void update() {}
@@ -59,6 +60,8 @@ class Entity {
         
     public:
     Entity(Manager& mManager) : manager(mManager) {}
+    bool isDestroyed = false; // Add this flag
+
     void update() {
         for (auto& c : components) c->update();
         
@@ -67,7 +70,15 @@ class Entity {
         for (auto& c : components) c->draw();
     }
     bool isActive() const { return active; }
-    void destroy() { active = false; }
+    void destroy() { 
+        
+        if (!isDestroyed) {
+            active = false; 
+            std::cout << "Entity Destroyed!" << std::endl; // Add this log
+        } else {
+            std::cout << "Entity already destroyed!" << std::endl; // Add this log
+        }
+    }
 
     bool hasGroup(Group mGroup) {
         return groupBitset[mGroup];
@@ -106,6 +117,7 @@ class Manager {
         std::vector<std::unique_ptr<Entity>> entities;
         std::array<std::vector<Entity*>, maxGroups> groupedEntities;
     public:
+    
         void update() {
             for (auto& e : entities) e->update();
         }

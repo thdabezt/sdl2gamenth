@@ -19,6 +19,15 @@ private:
 
 
 public:
+bool isHit = false;
+    Uint32 hitTime = 0;
+    Uint32 hitDuration = 150; // Flash duration in milliseconds
+    SDL_Color tint = {255, 255, 255, 255}; // Add this line to declare the tint variable
+    // Add this getter method if it doesn't exist yet
+    SDL_Texture* getTexture() {
+        return texture;
+    }
+    
     
     int animIndex = 0;
 
@@ -71,7 +80,29 @@ public:
     }
 
     void draw() override {
+        // Calculate the current tint color
+        SDL_Color currentTint = tint;
+        
+        // If hit, apply red tint for this specific entity
+        if (isHit) {
+            if (SDL_GetTicks() > hitTime + hitDuration) {
+                // Reset tint after duration
+                isHit = false;
+                currentTint = {255, 255, 255, 255}; // Reset to normal color
+            } else {
+                // Use red tint during hit duration
+                currentTint = {255, 100, 100, 255}; // Red tint
+            }
+        }
+        
+        // Apply the current tint for this render call only
+        SDL_SetTextureColorMod(texture, currentTint.r, currentTint.g, currentTint.b);
+        
+        // Draw the sprite
         TextureManager::Draw(texture, srcRect, destRect, spriteFlip);
+        
+        // Reset texture color back to normal after drawing
+        SDL_SetTextureColorMod(texture, 255, 255, 255);
     }
 
     void Play(const char* animName){

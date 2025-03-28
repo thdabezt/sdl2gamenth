@@ -6,3 +6,6 @@
 #include "ColliderComponent.h"
 #include "TileComponent.h"
 #include "ProjectileComponent.h"
+#include "HealthComponent.h"
+#include "WeaponComponent.h"
+// #include "EnemyAi.h"

@@ -24,7 +24,7 @@ struct TransformComponent : public Component {
         TransformComponent(float x, float y) {
             position.Zero();
         }
-        TransformComponent(float x, float y, int h, int w, int s) {
+        TransformComponent(float x, float y, int h, int w, float s) {
             position.x = x;
             position.y = y;
             height = h;
@@ -35,9 +35,16 @@ struct TransformComponent : public Component {
             velocity.Zero();
         }
         void update() override {
-            position.x += static_cast<int>(velocity.x * speed);
-		    position.y += static_cast<int>(velocity.y * speed);
-
+            // Only update position if there's actually movement
+            if (velocity.x != 0 || velocity.y != 0) {
+                // If moving diagonally, normalize to prevent faster diagonal movement
+                if (velocity.x != 0 && velocity.y != 0) {
+                    velocity = velocity.Normalize();
+                }
+                
+                position.x += velocity.x * speed;
+                position.y += velocity.y * speed;
+            }
         }
 
 };

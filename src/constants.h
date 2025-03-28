@@ -21,7 +21,7 @@ const int E1_W = 64;
 const int E1_H = 64;
 const int E1_X = 300;
 const int E1_Y = 0;
-const char* const enemy1Sprites = "sprites/enemy/enemy1.png";
+const char* const enemy1Sprites = "sprites/enemy/enemy_anims.png";
 
 //MAP SETTINGS
 const int TILE_SIZE = 32;

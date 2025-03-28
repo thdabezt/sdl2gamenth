@@ -4,6 +4,8 @@
 #include "Components.h"
 #include "../game.h"
 #include "../TextureManager.h"
+#include "../Vector2D.h"
+
 class ColliderComponent : public Component {
 public:
     SDL_Rect collider;
@@ -11,23 +13,25 @@ public:
 
     SDL_Texture* tex;
 
-
     SDL_Rect srcR, destR;
 
     TransformComponent* transform;
+    Vector2D position;
+
+    int colliderWidth = 0;
+    int colliderHeight = 0; 
 
     ColliderComponent(std::string t) {
         tag = t;
     }
 
-    ColliderComponent(std::string t, int xpos, int ypos, int size)
-	{
-		tag = t;
-		collider.x = xpos;
-		collider.y = ypos;
-		collider.h = collider.w = size;
-	}
-
+    // Constructor with custom collision box size
+    ColliderComponent(std::string t, int cWidth, int cHeight) {
+        tag = t;
+        colliderWidth = cWidth;
+        colliderHeight = cHeight;
+    }
+    
     void init() override {
         if (!entity->hasComponent<TransformComponent>()) {
             entity->addComponent<TransformComponent>();
@@ -39,27 +43,52 @@ public:
             srcR = {0, 0, 32, 32};
             destR = {collider.x, collider.y, collider.w, collider.h};
         }
-        
-
-    }
-
-    void update() override {
-        if (tag != "terrain") {
-            collider.x = static_cast<int>(transform->position.x);
-            collider.y = static_cast<int>(transform->position.y);
-            collider.w = transform->width * transform->scale;
-            collider.h = transform->height * transform->scale;
+        // If no custom size is provided, use the sprite's size
+        if (colliderWidth == 0 || colliderHeight == 0) {
+            colliderWidth = transform->width * transform->scale;
+            colliderHeight = transform->height * transform->scale;
         }
 
+        collider.w = colliderWidth;
+        collider.h = colliderHeight;
+    }
+    // Constructor with tag, position, and size
+    ColliderComponent(std::string t, int xpos, int ypos, int size) {
+        tag = t;
+        collider.x = xpos;
+        collider.y = ypos;
+        collider.w = size = size;
+        colliderWidth = colliderHeight = size;
+    }
+    
+    void update() override {
+        // Update collider position based on the TransformComponent
+        
+        if (tag == "player") {
+            collider.x = static_cast<int>(transform->position.x) + 50;
+            collider.y = static_cast<int>(transform->position.y) + 70;
+            collider.w = colliderWidth;
+            collider.h = colliderHeight;
+        }
+        else if (tag == "enemy") {
+            collider.x = static_cast<int>(transform->position.x) + 32;
+            collider.y = static_cast<int>(transform->position.y) + 60;
+            collider.w = colliderWidth;
+            collider.h = colliderHeight;
+        }
+        else if (tag != "terrain") {
+            collider.x = static_cast<int>(transform->position.x);
+            collider.y = static_cast<int>(transform->position.y);
+            collider.w = colliderWidth;
+            collider.h = colliderHeight;
+        }
+        position.x = collider.x;
+        position.y = collider.y;
+        // Adjust the collider position relative to the camera
         destR.x = collider.x - Game::camera.x;
         destR.y = collider.y - Game::camera.y;
     }
 
-    // void draw() override {
-    //     if (tag == "terrain") {
-    //         TextureManager::Draw(tex, srcR, destR, SDL_FLIP_NONE);
-    //     }
-    // }
     void draw() override {
         // Set the color for the collision box (e.g., red)
         SDL_SetRenderDrawColor(Game::renderer, 255, 0, 0, 255);
@@ -78,5 +107,10 @@ public:
         // Reset the render color to white
         SDL_SetRenderDrawColor(Game::renderer, 255, 255, 255, 255);
     }
-    
 };
+
+// void draw() override {
+    //     if (tag == "terrain") {
+    //         TextureManager::Draw(tex, srcR, destR, SDL_FLIP_NONE);
+    //     }
+    // }
