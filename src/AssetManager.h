@@ -12,7 +12,7 @@ public:
     ~AssetManager();
     
     // Update CreateProjectile to include damage
-    void CreateProjectile(Vector2D pos, Vector2D vel, int range, int damage, std::string id);
+void CreateProjectile(Vector2D pos, Vector2D vel, int range, int damage, int size, std::string id);
     
     // Texture management
     void AddTexture(std::string id, const char* path);

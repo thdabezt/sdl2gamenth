@@ -9,9 +9,9 @@ AssetManager::AssetManager(Manager* Man) : manager(Man){
 AssetManager::~AssetManager(){
 
 }
-void AssetManager::CreateProjectile(Vector2D pos, Vector2D vel, int range, int damage, std::string id){
+void AssetManager::CreateProjectile(Vector2D pos, Vector2D vel, int range, int damage, int size, std::string id) {
     auto& projectile(manager->addEntity());
-    projectile.addComponent<TransformComponent>(pos.x, pos.y, 32, 32, 1);
+    projectile.addComponent<TransformComponent>(pos.x, pos.y, size, size, 1); // Use the custom size
     projectile.addComponent<SpriteComponent>(id);
     projectile.addComponent<ProjectileComponent>(range, damage, vel);
     projectile.addComponent<ColliderComponent>("projectile");

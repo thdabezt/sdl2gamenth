@@ -15,7 +15,7 @@ public:
     void renderHealthBar(Entity& entity, Vector2D position);
     void takeDamage(int damage) {
         health -= damage;
-        if (health < 0) {
+        if (health <= 0) {
             health = 0;
             // Handle entity death here (e.g., destroy the entity)
             entity->destroy();

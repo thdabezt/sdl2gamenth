@@ -53,9 +53,17 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
         if(renderer){
             std::cout<< "Renderer running" <<std::endl;
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            // Initialize UI manager
+            ui = new UIManager(renderer);
+            ui->init();
         }
         if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) {
             std::cerr << "Failed to initialize SDL_image: " << IMG_GetError() << std::endl;
+            isRunning = false;
+            return;
+        }
+        if (!TTF_WasInit() && TTF_Init() == -1) {
+            std::cerr << "Failed to initialize SDL_ttf: " << TTF_GetError() << std::endl;
             isRunning = false;
             return;
         }
@@ -73,7 +81,10 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
     player.addComponent<SpriteComponent>("player", true);
     player.addComponent<KeyboardController>();
     player.addComponent<ColliderComponent>("player", 32 , 37);
-    player.addComponent<WeaponComponent>(25, 200, 5.0f, 500, 0.2f, 3, "projectile");
+    player.addComponent<HealthComponent>(99999999, 99999999);
+    // Create a pistol (small bullets)
+    player.addComponent<WeaponComponent>("pistol", 25,  200,  5.0f,  500,   0.2f,    1,    16,   "projectile");
+                                       // tag     dmg  rate  speed  range  spread  count  size  texture
     player.addGroup(groupPlayers);
 
 
@@ -262,6 +273,21 @@ void Game::update(){
                             // Use the projectile's damage value instead of a fixed value
                             int damage = p->getComponent<ProjectileComponent>().getDamage();
                             e->getComponent<HealthComponent>().takeDamage(damage);
+                            if (e->getComponent<HealthComponent>().getHealth() <= 0) {
+                                // Increment enemies defeated counter
+                                if (ui) {
+                                    ui->incrementEnemiesDefeated();
+                                    
+                                    // Upgrade player's weapon when enemy is defeated
+                                    player.getComponent<WeaponComponent>().onEnemyDefeated();
+                                    
+                                    std::cout << "Enemy defeated! Total defeated: " << ui->getEnemiesDefeated() << std::endl;
+                                }
+                                
+                                // Destroy the enemy
+                                
+                            }
+                            
                             projectileHit = true;
                             p->destroy();
                             break;
@@ -338,12 +364,17 @@ void Game::render(){
             renderHealthBar(*e, enemyPos);
         }
     }
+    // In Game::render(), at the end before SDL_RenderPresent:
+    if (ui) {
+        ui->renderUI(player);
+    }
     SDL_RenderPresent(renderer);
 }
 
 void Game::clean(){
     SDL_DestroyWindow(window);
     SDL_DestroyRenderer(renderer);
+    if (TTF_WasInit()) TTF_Quit();
     IMG_Quit();
     SDL_Quit();
     std::cout<< "Game quitted"<< std::endl;

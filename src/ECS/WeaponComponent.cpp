@@ -70,6 +70,31 @@ void WeaponComponent::shoot() {
 
 // Helper to create projectile - this is where we actually call AssetManager
 void WeaponComponent::createProjectile(Vector2D position, Vector2D velocity) {
-    // Only access AssetManager from the cpp file, not the header
-    Game::assets->CreateProjectile(position, velocity, projectileRange, damage, projectileTexture);
+    // Access AssetManager from the cpp file to avoid circular dependency
+    Game::assets->CreateProjectile(position, velocity, projectileRange, damage, projectileSize, projectileTexture);
+
+}
+
+void WeaponComponent::onEnemyDefeated() {
+    // Increase damage by 1 each time an enemy is defeated
+    damage += 1;
+    
+    // Decrease fire rate (make it faster) every 3 enemies
+    static int enemiesDefeated = 0;
+    enemiesDefeated++;
+    
+    if (enemiesDefeated % 3 == 0) {
+        // Reduce fire rate by 5% (makes it shoot faster)
+        fireRate = std::max(50, static_cast<int>(fireRate * 0.95f));
+    }
+    
+    // Increase projectile count periodically
+    if (enemiesDefeated % 10 == 0 && projectilesPerShot < 5) {
+        projectilesPerShot += 1;
+    }
+    
+    // Log the weapon upgrade
+    std::cout << "Weapon upgraded! Damage: " << damage 
+              << ", Fire Rate: " << fireRate 
+              << ", Projectiles: " << projectilesPerShot << std::endl;
 }

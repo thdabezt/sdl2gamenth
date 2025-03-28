@@ -5,7 +5,7 @@
 #include <vector>
 #include "Vector2D.h"
 #include "ECS/ECS.h"
-
+#include "UI.h"
 class AssetManager;
 class Entity;
 class Map;
@@ -59,7 +59,7 @@ class Game {
         Uint32 lastShotTime = 0;       // Timer for projectiles
         Uint32 lastEnemySpawnTime = 0; // Timer for enemy spawning
         SDL_Window *window;
-
+        UIManager* ui = nullptr;
 
 
 };
