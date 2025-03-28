@@ -7,7 +7,7 @@
 #include "Components.h"
 // ----------------------------------------------------
 
-#include <iostream> // For std::cerr, std::cout (optional debugging)
+#include <iostream> 
 #define _USE_MATH_DEFINES // Define BEFORE including cmath
 #include <cmath>    // For M_PI, cos, sin (include AFTER define)
 #include <cstdlib>  // For rand()
@@ -41,7 +41,7 @@ SpellComponent::SpellComponent(std::string spellTag, int dmg, int cool, float sp
 // --- Init Implementation (No change needed) ---
 void SpellComponent::init() {
     if (!entity->hasComponent<TransformComponent>()) {
-        std::cerr << "SpellComponent Error: Entity missing TransformComponent during init!" << std::endl;
+        // std::cerr << "SpellComponent Error: Entity missing TransformComponent during init!" << std::endl;
         return;
     }
     transform = &entity->getComponent<TransformComponent>();

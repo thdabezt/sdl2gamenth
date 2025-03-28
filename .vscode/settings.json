@@ -81,7 +81,8 @@
         "variant": "cpp",
         "bitset": "cpp",
         "fstream": "cpp",
-        "set": "cpp"
+        "set": "cpp",
+        "iomanip": "cpp"
     },
 }
     

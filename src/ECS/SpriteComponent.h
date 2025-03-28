@@ -80,6 +80,11 @@ bool isHit = false;
     }
 
     void draw() override {
+        if (!texture) {
+            // Optional: Log an error here if you have a logging system
+            // std::cerr << "Error: Trying to draw SpriteComponent with null texture!" << std::endl;
+            return; // Don't try to draw if the texture is null
+        }
         // Calculate the current tint color
         SDL_Color currentTint = tint;
         

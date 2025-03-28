@@ -35,7 +35,7 @@ public:
     SpellTrajectory trajectoryMode;
     float spiralGrowthRate;
     int projectilePierce = 1; // Pierce value for this spell's projectiles
-
+    
     // --- State / Pointers (Declare ONLY ONCE) ---
     TransformComponent* transform = nullptr;
     Uint32 lastCastTime = 0;

@@ -3,66 +3,101 @@
 #include <SDL.h>
 #include <iostream>
 #include <vector>
+// #include <functional> // For std::function
 #include "Vector2D.h"
 #include "ECS/ECS.h"
 #include "UI.h"
-
-
+#include <SDL_mixer.h>
+// Forward declarations
 class AssetManager;
 class Entity;
 class Map;
 class ColliderComponent;
+class UIManager;
+class Player;
+class SpellComponent;
+class WeaponComponent;
+
+// Buff Type Enum
+enum class BuffType {
+    // Spell Buffs
+    SPELL_DAMAGE, SPELL_COOLDOWN, /* SPELL_PROJ_SPEED, */ SPELL_PROJ_COUNT, /* SPELL_PROJ_SIZE, */ SPELL_PIERCE, // <-- REMOVED
+    // Weapon Buffs
+    WEAPON_DAMAGE, WEAPON_FIRE_RATE, WEAPON_PROJ_COUNT, WEAPON_PIERCE, WEAPON_BURST_COUNT,
+    // Player Buffs
+    PLAYER_HEAL,
+    INVALID
+};
+
+// Buff Info Struct
+struct BuffInfo {
+    std::string name;
+    std::string description;
+    BuffType type = BuffType::INVALID;
+    float amount = 0.0f;
+};
 
 class Game {
 public:
     static Game* instance;
-    Game();
+    static SDL_Renderer* renderer;
+    static SDL_Event event;
+    static SDL_Rect camera;
+    static AssetManager* assets;
+    static bool isRunning;
+    static int mouseX;
+    static int mouseY;
 
+    Game();
     ~Game();
     void init(const char* title, int xpos, int ypos, int width, int height, bool fullscreen);
-
     void handleEvents();
     void update();
     void render();
     void clean();
-
-    bool running() {
-        return isRunning;
-    }
-    void rezero();
+    bool running() { return isRunning; }
     void setRunning(bool running) { isRunning = running; }
-    
-    void spawnEnemy();
-    static SDL_Renderer *renderer;
-    static SDL_Event event;
-    Entity& getPlayer();
-    Player* getPlayerManager() { return playerManager; }  // Add new getter
-    static bool isRunning;
-    // Add these methods
-    static void cleanupRenderer();
-    static SDL_Rect camera;
-    static AssetManager* assets;
-    static int mouseX;
-    static int mouseY;
     bool getPaused() const { return isPaused; }
-    void togglePause() { isPaused = !isPaused;
-        std::cout << "togglePause called, new state: " << isPaused << std::endl; }
-    enum groupLabels : std::size_t{
-        groupMap,
-        groupPlayers,
-        groupColliders,
-        groupProjectiles,
-        groupEnemies,
-    };
+    void togglePause() ;
+    void rezero();
+    Entity& getPlayer();
+    Player* getPlayerManager() { return playerManager; }
+    void spawnEnemy();
     void renderHealthBar(Entity& entity, Vector2D position);
-    
+    void enterBuffSelection();
+    void exitBuffSelection();
+    void applySelectedBuff(int index);
+    int musicVolume = MIX_MAX_VOLUME / 2; // Start at 50%
+    int sfxVolume = MIX_MAX_VOLUME / 2;   // Start at 50%
+    const int VOLUME_STEP = 10; // Adjust volume by 10%
+    int getMusicVolume() const { return musicVolume; } // Getter for UI
+    int getSfxVolume() const { return sfxVolume; }   // Getter for UI
+    enum groupLabels : std::size_t {
+        groupMap, groupPlayers, groupColliders, groupProjectiles, groupEnemies
+    };
+
 private:
-    int count = 0;
-    Uint32 lastShotTime = 0;       // Timer for projectiles
-    Uint32 lastEnemySpawnTime = 0; // Timer for enemy spawning
-    // SDL_Window *window;
-    UIManager* ui = nullptr;
-    Player* playerManager = nullptr;  // Add Player instance
-    bool isPaused = false;
+   
+    void changeMusicVolume(int delta);
+    void changeSfxVolume(int delta);
+    
     Entity* playerEntity = nullptr;
+    Player* playerManager = nullptr;
+    UIManager* ui = nullptr;
+    Map* map = nullptr;
+    bool isPaused = false;
+    Uint32 lastEnemySpawnTime = 0;
+    Uint32 lastShotTime = 0;
+    bool isInBuffSelection = false;
+    std::vector<BuffInfo> currentBuffOptions;
+    void generateBuffOptions();
+
+    const int BUFF_DAMAGE_AMOUNT = 5;
+    const int BUFF_COOLDOWN_AMOUNT = 50;
+    const float BUFF_PROJ_SPEED_AMOUNT = 0.5f;
+    const int BUFF_PROJ_COUNT_AMOUNT = 1;
+    const int BUFF_PROJ_SIZE_AMOUNT = 2;
+    const int BUFF_PIERCE_AMOUNT = 1;
+    const int BUFF_FIRE_RATE_AMOUNT = 50;
+    const int BUFF_BURST_COUNT_AMOUNT = 1;
 };

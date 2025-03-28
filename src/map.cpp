@@ -46,7 +46,7 @@ void Map::LoadMap(std::string path, int sizeX, int sizeY, int griWidth) {
              // Store the position of '1' tiles
              if (tileCode == 1) {
                 spawnPoints.emplace_back(x * scaledSize, y * scaledSize);
-                std::cout << "Added spawn point at: (" << x * scaledSize << ", " << y * scaledSize << ")" << std::endl;
+                // std::cout << "Added spawn point at: (" << x * scaledSize << ", " << y * scaledSize << ")" << std::endl;
             }
         }
         

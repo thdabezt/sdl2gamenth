@@ -3,8 +3,9 @@
 #include "Vector2D.h"
 
 #include "ECS/Player.h"
-#include <sstream>
+// #include <sstream>
 #include <iostream>
+#include <iomanip> // For std::setprecision
 
 UIManager::UIManager(SDL_Renderer* renderer) : renderer(renderer) {
     // Initialize SDL_ttf if not already initialized
@@ -367,3 +368,66 @@ void UIManager::clearCache() {
     }
     textCache.clear();
 }
+bool UIManager::isMouseInside(int mouseX, int mouseY, const SDL_Rect& rect) {
+    return mouseX >= rect.x && mouseX <= rect.x + rect.w &&
+           mouseY >= rect.y && mouseY <= rect.y + rect.h;
+}
+
+
+void UIManager::renderBuffSelectionUI(const std::vector<BuffInfo>& buffs) {
+    if (!hasFonts() || buffs.empty()) return;
+
+    // Semi-transparent background overlay
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180); // Darker overlay
+    SDL_Rect fullscreen = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
+    SDL_RenderFillRect(renderer, &fullscreen);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+    // Title
+    SDL_Color titleColor = {255, 215, 0, 255}; // Gold
+    drawText("Choose an Upgrade!", WINDOW_WIDTH / 2 - 150, 50, titleColor, largeFont);
+
+    // Button layout (example: 4 horizontal buttons)
+    int totalButtonWidth = 4 * 180 + 3 * 20; // 4 buttons * width + 3 gaps
+    int startX = (WINDOW_WIDTH - totalButtonWidth) / 2;
+    int buttonY = WINDOW_HEIGHT / 2 - 50;
+    int buttonW = 180;
+    int buttonH = 100;
+    int gap = 20;
+
+    SDL_Color buttonColor = {50, 50, 100, 255};
+    SDL_Color borderColor = {150, 150, 200, 255};
+    SDL_Color textColor = {255, 255, 255, 255};
+
+    for (size_t i = 0; i < buffs.size() && i < 4; ++i) {
+        SDL_Rect buttonRect = {startX + static_cast<int>(i) * (buttonW + gap), buttonY, buttonW, buttonH};
+
+        // Draw button background and border
+        SDL_SetRenderDrawColor(renderer, buttonColor.r, buttonColor.g, buttonColor.b, buttonColor.a);
+        SDL_RenderFillRect(renderer, &buttonRect);
+        SDL_SetRenderDrawColor(renderer, borderColor.r, borderColor.g, borderColor.b, borderColor.a);
+        SDL_RenderDrawRect(renderer, &buttonRect);
+
+        // Draw buff name and description (centered)
+        // You might need to adjust text positioning based on font size and text length
+        int textWidth, textHeight;
+        renderTextToTexture(buffs[i].name, textColor, font, textWidth, textHeight); // Use helper to get size
+        drawText(buffs[i].name, buttonRect.x + (buttonRect.w - textWidth) / 2, buttonRect.y + 15, textColor, font);
+
+        renderTextToTexture(buffs[i].description, textColor, font, textWidth, textHeight);
+        drawText(buffs[i].description, buttonRect.x + (buttonRect.w - textWidth) / 2, buttonRect.y + 45, textColor, font);
+
+         // Draw amount
+         std::stringstream ss;
+         // Check if amount is whole number for cleaner display
+         if (buffs[i].amount == floor(buffs[i].amount)) {
+             ss << "+" << static_cast<int>(buffs[i].amount);
+         } else {
+              ss << "+" << std::fixed << std::setprecision(1) << buffs[i].amount;
+         }
+         renderTextToTexture(ss.str(), textColor, font, textWidth, textHeight);
+         drawText(ss.str(), buttonRect.x + (buttonRect.w - textWidth) / 2, buttonRect.y + 75, textColor, font);
+    }
+}
+

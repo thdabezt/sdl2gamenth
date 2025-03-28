@@ -11,7 +11,7 @@ GameScene::~GameScene() {
 }
 
 void GameScene::resetGame() {
-    std::cout << "Resetting game state for new game" << std::endl;
+    // std::cout << "Resetting game state for new game" << std::endl;
 
     // Clean up existing game if it exists by deleting it.
     // The Game destructor (~Game) will now call the modified Game::clean().
@@ -24,11 +24,11 @@ void GameScene::resetGame() {
 }
 
 void GameScene::init() {
-    std::cout << "Initializing Game Scene" << std::endl;
+    // std::cout << "Initializing Game Scene" << std::endl;
     
     // Check if game already exists (returning from Win/Lose scene)
     if (game) {
-        std::cout << "Game already exists - just resetting state" << std::endl;
+        // std::cout << "Game already exists - just resetting state" << std::endl;
         // Just reset the game state without destroying everything
         Game::isRunning = true;
         return;
@@ -46,7 +46,7 @@ void GameScene::handleEvents(SDL_Event& event) {
 
     // ADD THIS: Log entry into GameScene::handleEvents for keydown
     if (event.type == SDL_KEYDOWN) {
-        std::cout << "+++ GameScene::handleEvents received keydown: " << SDL_GetKeyName(event.key.keysym.sym) << std::endl;
+        // std::cout << "+++ GameScene::handleEvents received keydown: " << SDL_GetKeyName(event.key.keysym.sym) << std::endl;
     }
 
     // Let the game handle the event
@@ -87,7 +87,7 @@ void GameScene::render() {
 }
 
 void GameScene::clean() {
-    std::cout << "Cleaning Game Scene" << std::endl;
+    // std::cout << "Cleaning Game Scene" << std::endl;
     
     // Don't destroy the game object - just set isRunning to false
     if (game) {

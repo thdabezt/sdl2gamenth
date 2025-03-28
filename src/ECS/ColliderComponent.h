@@ -107,10 +107,10 @@ public:
         };
 
         // Draw the collision box
-        SDL_RenderDrawRect(Game::renderer, &debugRect);
+        // SDL_RenderDrawRect(Game::renderer, &debugRect);
 
         // Reset the render color to white
-        SDL_SetRenderDrawColor(Game::renderer, 255, 255, 255, 255);
+        // SDL_SetRenderDrawColor(Game::renderer, 255, 255, 255, 255);
     }
 };
 

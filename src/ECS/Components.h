@@ -10,4 +10,5 @@
 #include "WeaponComponent.h"
 #include "Player.h"
 #include "SpellComponent.h" 
+#include "SoundComponent.h" // Add this line
 // #include "EnemyAi.h"

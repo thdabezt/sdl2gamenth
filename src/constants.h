@@ -14,6 +14,8 @@ const int CHAR_W = 64;
 const int CHAR_H = 64;
 const int CHAR_X = 400;
 const int CHAR_Y = 300;
+const int playerHealth = 100;
+const int playerSpeed = 3;
 const char* const playerSprites = "sprites/character/player_anims.png";
 
 //ENEMY SETTINGS
@@ -115,23 +117,23 @@ const int zombieExp = 16;
 
 // Speed values for each enemy
 const float zombieSpeed = 1.0f;
-const float aligator1Speed = 1.2f;
-const float aligator2Speed = 1.2f;
-const float bear1Speed = 0.9f;
-const float bear2Speed = 0.9f;
+const float aligator1Speed = 1.0f;
+const float aligator2Speed = 1.0f;
+const float bear1Speed = 1.0f;
+const float bear2Speed = 1.0f;
 const float eliteSkeletonShieldSpeed = 1.0f;
 // const float enemy1Speed = 1.5f;
-const float ina1Speed = 1.3f;
-const float ina2Speed = 1.3f;
-const float ina3Speed = 1.3f;
-const float kfc1Speed = 1.1f;
-const float kfc2Speed = 1.1f;
+const float ina1Speed = 1.0f;
+const float ina2Speed = 1.0f;
+const float ina3Speed = 1.0f;
+const float kfc1Speed = 1.0f;
+const float kfc2Speed = 1.0f;
 const float shrimpTankSpeed = 1.0f;
-const float skeleton1Speed = 1.4f;
-const float skeleton2Speed = 1.4f;
-const float skeleton3Speed = 1.4f;
-const float skeleton4Speed = 1.4f;
-const float skeleton5Speed = 1.4f;
+const float skeleton1Speed = 1.0f;
+const float skeleton2Speed = 1.0f;
+const float skeleton3Speed = 1.0f;
+const float skeleton4Speed = 1.0f;
+const float skeleton5Speed = 1.0f;
 const float skeletonShieldSpeed = 1.0f;
 
 

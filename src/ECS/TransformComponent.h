@@ -1,6 +1,7 @@
 #pragma once
 #include "Components.h"
 #include "../vector2D.h"
+// #include "../constants.h"
 struct TransformComponent : public Component {
     public:
 
@@ -36,14 +37,11 @@ struct TransformComponent : public Component {
         }
         void update() override {
             // Only update position if there's actually movement
+            // The velocity vector received here should already be correctly
+            // normalized (if diagonal) and scaled by playerSpeed from KeyboardController
             if (velocity.x != 0 || velocity.y != 0) {
-                // If moving diagonally, normalize to prevent faster diagonal movement
-                if (velocity.x != 0 && velocity.y != 0) {
-                    velocity = velocity.Normalize();
-                }
-                
-                position.x += velocity.x * speed;
-                position.y += velocity.y * speed;
+                position.x += velocity.x;
+                position.y += velocity.y;
             }
         }
 

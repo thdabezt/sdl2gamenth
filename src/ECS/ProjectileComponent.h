@@ -24,7 +24,7 @@ public:
 
     void init() override {
         if (!entity->hasComponent<TransformComponent>()) {
-             std::cerr << "ProjectileComponent Error: Missing TransformComponent during init!" << std::endl;
+            //  std::cerr << "ProjectileComponent Error: Missing TransformComponent during init!" << std::endl;
              entity->destroy();
              return;
         }
@@ -48,7 +48,7 @@ public:
     // --- Check if projectile should be destroyed based on unique hits ---
     bool shouldDestroy() const {
         // Destroy if the number of unique enemies hit reaches the pierce limit
-        return hitEnemies.size() >= maxPierce;
+        return hitEnemies.size() >= static_cast<decltype(hitEnemies.size())>(maxPierce);
     }
 
     void update() override {

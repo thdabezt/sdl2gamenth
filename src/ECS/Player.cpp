@@ -25,10 +25,11 @@ void Player::levelUp() {
         health.setMaxHealth(health.getMaxHealth() + maxHealthIncrease);
         health.heal(maxHealthIncrease); // Heal by the amount increased
     }
-    
-    // Log level up message
-    std::cout << "LEVEL UP! Now level " << level 
-              << ", +" << level * 5 << " Max Health" << std::endl;
+    if (level % 2 == 0) {
+        if (Game::instance) { // Check if Game instance exists
+             Game::instance->enterBuffSelection(); // Call a new function in Game class
+        }
+    }
 }
 
 

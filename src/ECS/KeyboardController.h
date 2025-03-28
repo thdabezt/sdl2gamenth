@@ -112,6 +112,7 @@
 #include "ECS.h"
 #include "Components.h"
 #include "../Scene/SceneManager.h"
+#include "../constants.h"
 class KeyboardController : public Component {
 public:
     TransformComponent* transform;
@@ -155,9 +156,16 @@ public:
         if (keystate[SDL_SCANCODE_S]) {
             transform->velocity.y = 1;
         }
-        
+        if (transform->velocity.x != 0 || transform->velocity.y != 0) {
+            // Normalize IF moving diagonally
+            if (transform->velocity.x != 0 && transform->velocity.y != 0) {
+                transform->velocity = transform->velocity.Normalize(); // Makes vector length 1
+            }
+            // Apply the player speed constant AFTER normalization (or if not diagonal)
+            transform->velocity = transform->velocity * playerSpeed;
+        }
         // Update animation based on current velocity
-        updateAnimation();
+        updateAnimation(transform->velocity.x != 0 || transform->velocity.y != 0);
     }
 
 private:
@@ -178,7 +186,7 @@ private:
         }
     }
 
-    void updateAnimation() {
+    void updateAnimation(bool isMoving) {
         // Apply appropriate sprite flip based on last direction
         if (lastDirection == LEFT) {
             sprite->spriteFlip = SDL_FLIP_HORIZONTAL;
@@ -186,10 +194,7 @@ private:
             sprite->spriteFlip = SDL_FLIP_NONE;
         }
 
-        // Check if player is moving (any non-zero velocity)
-        bool isMoving = transform->velocity.x != 0 || transform->velocity.y != 0;
-        
-        // Update animation state based on movement
+        // Update animation state based on movement status
         if (isMoving) {
             sprite->Play("Walk");
         } else {

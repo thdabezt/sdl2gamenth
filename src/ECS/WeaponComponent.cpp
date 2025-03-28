@@ -66,10 +66,13 @@ void WeaponComponent::update() {
 void WeaponComponent::shoot() {
     // Check required components again before dereferencing
     if (!transform || !collider) {
-        std::cerr << "WeaponComponent::shoot() called without valid transform or collider!" << std::endl;
+        // std::cerr << "WeaponComponent::shoot() called without valid transform or collider!" << std::endl;
         return;
     }
-
+    if (entity->hasComponent<SoundComponent>()) {
+        // Call playSoundEffect using the internal name "shoot"
+        entity->getComponent<SoundComponent>().playSoundEffect("shoot");
+    }
     Vector2D projectilePosition;
     projectilePosition.x = static_cast<float>(collider->collider.x) + collider->collider.w / 2.0f; // Center start pos
     projectilePosition.y = static_cast<float>(collider->collider.y) + collider->collider.h / 2.0f;
