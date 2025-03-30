@@ -77,7 +77,15 @@ void SpellComponent::update() {
 // --- CastSpell Implementation (Using acos(-1.0) for pi) ---
 void SpellComponent::castSpell() {
     if (!transform) return;
-
+    
+    if (entity->hasComponent<SoundComponent>()) {
+        auto& soundComp = entity->getComponent<SoundComponent>();
+        if (this->tag == "spell") { // Check the tag of this SpellComponent instance
+            soundComp.playSoundEffect("fire_cast"); // Play sound registered for fire spell
+        } else if (this->tag == "star") {
+            soundComp.playSoundEffect("star_cast"); // Play sound registered for star spell
+        }
+    }
     Vector2D playerCenter = transform->position;
     if (entity->hasComponent<ColliderComponent>()) {
          auto& collider = entity->getComponent<ColliderComponent>();

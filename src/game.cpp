@@ -80,6 +80,15 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
     assets->AddTexture("projectile", "sprites/projectile/gunshot.png");
     assets->AddTexture("fire", "sprites/projectile/fire.png");
     assets->AddTexture("starproj", "sprites/projectile/star.png");
+
+    assets->AddTexture("exp_orb_1", "sprites/projectile/gunshot.png");   // Tier 1 (1-9 EXP)
+    assets->AddTexture("exp_orb_10", "sprites/projectile/gunshot.png");  // Tier 2 (10-49 EXP)
+    assets->AddTexture("exp_orb_50", "sprites/projectile/gunshot.png");  // Tier 3 (50-99 EXP)
+    assets->AddTexture("exp_orb_100", "sprites/projectile/gunshot.png"); // Tier 4 (100-249 EXP)
+    assets->AddTexture("exp_orb_250", "sprites/projectile/gunshot.png"); // Tier 5 (250-499 EXP)
+    assets->AddTexture("exp_orb_500", "sprites/projectile/gunshot.png");
+
+
     // Create and setup player entity as member
     playerEntity = &manager.addEntity(); // Create the entity for this Game instance
     playerEntity->addComponent<TransformComponent>(400.0f, 320.0f, CHAR_W, CHAR_H, 2);
@@ -91,18 +100,22 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
     // Create a pistol (small bullets)
     assets->AddSoundEffect("gunshot_sound", "assets/sound/shot.wav"); // Assuming path
     assets->AddMusic("level_music", "assets/sound/hlcbg.mp3"); // Assuming path
+    assets->AddSoundEffect("fire_spell_sound", "assets/sound/fire_cast.wav"); // Example path
+    assets->AddSoundEffect("star_spell_sound", "assets/sound/star_cast.wav"); // Example path
 
     // Add SoundComponent to player
     playerEntity->addComponent<SoundComponent>();
     playerEntity->getComponent<SoundComponent>().addSoundEffect("shoot", "gunshot_sound"); // Map internal name "shoot"
+    playerEntity->getComponent<SoundComponent>().addSoundEffect("fire_cast", "fire_spell_sound");
+    playerEntity->getComponent<SoundComponent>().addSoundEffect("star_cast", "star_spell_sound");
     playerEntity->getComponent<SoundComponent>().setBackgroundMusic("level_music", true, -1); // Set background music to play on start
  
     playerEntity->addComponent<WeaponComponent>(
         "pistol",     // tag
         25,           // damage
-        500,          // fireRate (time between bursts)
-        5.0f,         // projectileSpeed
-        500,          // projectileRange
+        1000,          // fireRate (time between bursts)
+        10.0f,         // projectileSpeed
+        2500,          // projectileRange
         0.1f,         // spreadAngle (small spread for burst accuracy?)
         1,            // projectilesPerShot (1 projectile per shot in the burst)
         32,           // projectileSize
@@ -116,9 +129,9 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
     playerEntity->addComponent<SpellComponent>(
         "spell",       // tag
         5,                    // damage
-        100,                  // cooldown (ms) - Maybe faster cooldown for visible spiral?
+        200,                  // cooldown (ms) - Maybe faster cooldown for visible spiral?
         3.0f,                 // projectileSpeed
-        0,                    // projectilesPerCast
+        5,                    // projectilesPerCast
         38,                   // projectileSize
         "fire",         // projectileTexture
         3000,                 // duration (ms)
@@ -129,9 +142,9 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
     playerEntity->addComponent<SpellComponent>(
         "star",       // tag
         5,                    // damage
-        100,                  // cooldown (ms) - Maybe faster cooldown for visible spiral?
+        5000,                  // cooldown (ms) - Maybe faster cooldown for visible spiral?
         3.0f,                 // projectileSpeed
-        1,                    // projectilesPerCast
+        0,                    // projectilesPerCast
         38,                   // projectileSize
         "starproj",         // projectileTexture
         3000,                 // duration (ms)
@@ -153,15 +166,13 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
 
 }
 
-// Note: These manager.getGroup calls might be problematic if manager is truly global
-// and game instances are created/destroyed. Consider passing manager or getting groups inside methods.
+
 auto& tiles(manager.getGroup(Game::groupMap));
 auto& players(manager.getGroup(Game::groupPlayers));
 auto& colliders(manager.getGroup(Game::groupColliders));
 auto& projectiles(manager.getGroup(Game::groupProjectiles));
 auto& enemies(manager.getGroup(Game::groupEnemies));
-
-
+auto& expOrbs(manager.getGroup(Game::groupExpOrbs));
 
 
 void Game::handleEvents() {
@@ -455,9 +466,43 @@ void Game::update(){
                             if (e->getComponent<HealthComponent>().getHealth() <= 0) {
                                 // Enemy died
                                 if (playerManager && e->hasComponent<EnemyAIComponent>()) {
-                                     playerManager->addExperience(e->getComponent<EnemyAIComponent>().getExpValue());
-                                     playerManager->incrementEnemiesDefeated();
-                                     
+                                    if (e->hasComponent<EnemyAIComponent>() && e->hasComponent<TransformComponent>()) {
+                                        int expValue = e->getComponent<EnemyAIComponent>().getExpValue();
+                                        Vector2D deathPosition = e->getComponent<ColliderComponent>().position;
+                                
+                                        // --- Determine Orb Texture ID based on EXP Value ---
+                                        std::string orbTextureId = "exp_orb_1"; // Default to the lowest tier
+                                
+                                        if (expValue >= 500) {
+                                            orbTextureId = "exp_orb_500";
+                                        } else if (expValue >= 250) {
+                                            orbTextureId = "exp_orb_250";
+                                        } else if (expValue >= 100) {
+                                            orbTextureId = "exp_orb_100";
+                                        } else if (expValue >= 50) {
+                                            orbTextureId = "exp_orb_50";
+                                        } else if (expValue >= 10) {
+                                            orbTextureId = "exp_orb_10";
+                                        }
+                                        // No need for 'else' for exp_orb_1 as it's the default
+                                        // --- End Texture ID Determination ---
+                                
+                                
+                                        std::cout << "Enemy died! Spawning EXP orb (" << orbTextureId << ") with " << expValue << " EXP at ("
+                                                  << deathPosition.x << ", " << deathPosition.y << ")" << std::endl; // Debug
+                                
+                                        // --- Create the EXP Orb Entity ---
+                                        auto& orb = manager.addEntity();
+                                        orb.addComponent<TransformComponent>(deathPosition.x, deathPosition.y, 32, 32, 1); // Adjust size/scale if needed
+                                        // Add SpriteComponent using the determined texture ID
+                                        std::cout << "DEBUG: Orb Entity: " << &orb << ", EXP: " << expValue << ", Assigning Texture ID: '" << orbTextureId << "'" << std::endl;
+                                        orb.addComponent<SpriteComponent>(orbTextureId); // <--- Use the selected texture ID
+                                        
+                                        orb.addComponent<ExpOrbComponent>(expValue);
+                                        
+                                    }
+                                    playerManager->incrementEnemiesDefeated();
+                                    
                                 }
                                 // Note: Enemy entity is marked for destruction by takeDamage when health <= 0
                             }
@@ -629,7 +674,7 @@ void Game::render(){
         for(auto& p : projectiles) if(p->isActive()) p->draw();
         for(auto& e : enemies) if(e->isActive()) {e->draw();}
         if(playerEntity && playerEntity->isActive()) playerEntity->draw();
-
+        for(auto& o : expOrbs) if(o->isActive()) o->draw();
         for(auto& e : enemies) {
             if (e->isActive() && e->hasComponent<ColliderComponent>() && e->hasComponent<HealthComponent>()) {
                 Vector2D enemyPos = e->getComponent<ColliderComponent>().position;
@@ -701,32 +746,56 @@ void Game::render(){
 
     SDL_RenderPresent(Game::renderer);
 } // End render
+
+
 void Game::generateBuffOptions() {
     currentBuffOptions.clear();
 
-    // Define using BuffType enum
+    // Define buff amounts (consider making these constants in game.h or constants.h)
+    const int SPELL_DAMAGE_INCREASE = 3;
+    const int SPELL_COOLDOWN_REDUCTION = 500; // milliseconds
+    const int SPELL_PIERCE_INCREASE = 1;
+    const int SPELL_COUNT_INCREASE = 1; // For star spell
+    const int SPELL_DURATION_INCREASE = 500; // For fire spell (milliseconds)
+
+    const int WEAPON_DAMAGE_INCREASE = 5;
+    const int WEAPON_FIRERATE_REDUCTION = 50;
+    const int WEAPON_PROJ_COUNT_INCREASE = 1;
+    const int WEAPON_PIERCE_INCREASE = 1;
+    const int WEAPON_BURST_COUNT_INCREASE = 1;
+    const float PLAYER_HEAL_PERCENT = 10.0f;
+
+    // Define all possible buffs using the new specific BuffTypes
     std::vector<BuffInfo> allPossibleBuffs = {
-        // Spell Buffs
-        {"Spell Dmg+", "+ Spell Damage", BuffType::SPELL_DAMAGE, static_cast<float>(BUFF_DAMAGE_AMOUNT)},
-        {"Spell CDR", "- Spell Cooldown", BuffType::SPELL_COOLDOWN, static_cast<float>(BUFF_COOLDOWN_AMOUNT)},
-        {"Spell Count+", "+ Spell Proj. Count", BuffType::SPELL_PROJ_COUNT, static_cast<float>(BUFF_PROJ_COUNT_AMOUNT)},
-        {"Spell Pierce+", "+ Spell Pierce", BuffType::SPELL_PIERCE, static_cast<float>(BUFF_PIERCE_AMOUNT)},
-        // Weapon Buffs
-        {"Wpn Dmg+", "+ Weapon Damage", BuffType::WEAPON_DAMAGE, static_cast<float>(BUFF_DAMAGE_AMOUNT)},
-        {"Wpn FireRate+", "+ Weapon Fire Rate", BuffType::WEAPON_FIRE_RATE, static_cast<float>(BUFF_FIRE_RATE_AMOUNT)},
-        {"Wpn Count+", "+ Weapon Proj. Count", BuffType::WEAPON_PROJ_COUNT, static_cast<float>(BUFF_PROJ_COUNT_AMOUNT)},
-        {"Wpn Pierce+", "+ Weapon Pierce", BuffType::WEAPON_PIERCE, static_cast<float>(BUFF_PIERCE_AMOUNT)},
-        {"Wpn Burst+", "+ Weapon Burst Count", BuffType::WEAPON_BURST_COUNT, static_cast<float>(BUFF_BURST_COUNT_AMOUNT)},
-        //Player Buffs
-        {"Heal", "Heal 10% Max HP", BuffType::PLAYER_HEAL, 10.0f}
+        // --- Fire Spell Buffs ---
+        {"Fire Dmg+", "+ Fire Spell Damage", BuffType::FIRE_SPELL_DAMAGE, static_cast<float>(SPELL_DAMAGE_INCREASE)},
+        {"Fire CDR", "- Fire Spell Cooldown", BuffType::FIRE_SPELL_COOLDOWN, static_cast<float>(SPELL_COOLDOWN_REDUCTION)},
+        {"Fire Pierce+", "+ Fire Spell Pierce", BuffType::FIRE_SPELL_PIERCE, static_cast<float>(SPELL_PIERCE_INCREASE)},
+        {"Fire Duration+", "+ Fire Spell Duration", BuffType::FIRE_SPELL_DURATION, static_cast<float>(SPELL_DURATION_INCREASE)},
+
+        // --- Star Spell Buffs ---
+        {"Star Dmg+", "+ Star Spell Damage", BuffType::STAR_SPELL_DAMAGE, static_cast<float>(SPELL_DAMAGE_INCREASE)},
+        {"Star CDR", "- Star Spell Cooldown", BuffType::STAR_SPELL_COOLDOWN, static_cast<float>(SPELL_COOLDOWN_REDUCTION)},
+        {"Star Pierce+", "+ Star Spell Pierce", BuffType::STAR_SPELL_PIERCE, static_cast<float>(SPELL_PIERCE_INCREASE)},
+        {"Star Count+", "+ Star Spell Proj. Count", BuffType::STAR_SPELL_PROJ_COUNT, static_cast<float>(SPELL_COUNT_INCREASE)},
+
+        // --- Weapon Buffs ---
+        {"Wpn Dmg+", "+ Weapon Damage", BuffType::WEAPON_DAMAGE, static_cast<float>(WEAPON_DAMAGE_INCREASE)},
+        {"Wpn FireRate+", "+ Weapon Fire Rate", BuffType::WEAPON_FIRE_RATE, static_cast<float>(WEAPON_FIRERATE_REDUCTION)}, // Note: Amount is reduction
+        {"Wpn Count+", "+ Weapon Proj. Count", BuffType::WEAPON_PROJ_COUNT, static_cast<float>(WEAPON_PROJ_COUNT_INCREASE)},
+        {"Wpn Pierce+", "+ Weapon Pierce", BuffType::WEAPON_PIERCE, static_cast<float>(WEAPON_PIERCE_INCREASE)},
+        {"Wpn Burst+", "+ Weapon Burst Count", BuffType::WEAPON_BURST_COUNT, static_cast<float>(WEAPON_BURST_COUNT_INCREASE)},
+
+        // --- Player Buffs ---
+        {"Heal", "Heal 10% Max HP", BuffType::PLAYER_HEAL, PLAYER_HEAL_PERCENT}
     };
 
     int numPossible = allPossibleBuffs.size();
     if (numPossible == 0) return;
 
-    // Simple random index selection (ensure uniqueness) - unchanged
+    // Randomly select buffs (ensure uniqueness) - unchanged logic
     std::vector<int> chosenIndices;
-    while(currentBuffOptions.size() < 4 && chosenIndices.size() < static_cast<size_t>(numPossible)) { // Use size_t for comparison
+    while(currentBuffOptions.size() < 4 && chosenIndices.size() < static_cast<size_t>(numPossible)) {
          int randIndex = std::rand() % numPossible;
          bool alreadyChosen = false;
          for(int chosen : chosenIndices) {
@@ -739,10 +808,10 @@ void Game::generateBuffOptions() {
              chosenIndices.push_back(randIndex);
              currentBuffOptions.push_back(allPossibleBuffs[randIndex]);
          }
-         if (chosenIndices.size() >= static_cast<size_t>(numPossible)) break; // Use size_t
+         if (chosenIndices.size() >= static_cast<size_t>(numPossible)) break;
     }
 
-    // std::cout << "Generated " << currentBuffOptions.size() << " buff options." << std::endl;
+    // std::cout << "Generated " << currentBuffOptions.size() << " buff options." << std::endl; // Optional debug
 }
 
 // --- enterBuffSelection & exitBuffSelection (Unchanged) ---
@@ -768,55 +837,103 @@ void Game::exitBuffSelection() {
 
 // --- Updated applySelectedBuff (Uses Enum Switch) ---
 void Game::applySelectedBuff(int index) {
-    if (isInBuffSelection && index >= 0 && index < static_cast<int>(currentBuffOptions.size())) {
-         if (playerEntity) {
-             // Access the selected buff using the index
-             const BuffInfo& selectedBuff = currentBuffOptions[index]; // Use const&
-
-            //  std::cout << "Applying buff: " << selectedBuff.name << std::endl;
-
-             // Apply buff based on type using a switch
-             int intAmount = static_cast<int>(selectedBuff.amount);
-             float floatAmount = selectedBuff.amount;
-
-            SpellComponent* spellComp = playerEntity->hasComponent<SpellComponent>() ? &playerEntity->getComponent<SpellComponent>() : nullptr;
-            WeaponComponent* weaponComp = playerEntity->hasComponent<WeaponComponent>() ? &playerEntity->getComponent<WeaponComponent>() : nullptr;
-            HealthComponent* healthComp = playerEntity->hasComponent<HealthComponent>() ? &playerEntity->getComponent<HealthComponent>() : nullptr; // Get HealthComponent
-
-             // Use selectedBuff.type (This should now work)
-             switch (selectedBuff.type) {
-                 // Spell Cases
-                 case BuffType::SPELL_DAMAGE:       if(spellComp) spellComp->increaseDamage(intAmount); break;
-                 case BuffType::SPELL_COOLDOWN:     if(spellComp) spellComp->decreaseCooldown(intAmount); break;
-                 case BuffType::SPELL_PROJ_COUNT:   if(spellComp) spellComp->increaseProjectileCount(intAmount); break;
-                 case BuffType::SPELL_PIERCE:       if(spellComp) spellComp->increasePierce(intAmount); break;
-                 // Weapon Cases
-                 case BuffType::WEAPON_DAMAGE:      if(weaponComp) weaponComp->increaseDamage(intAmount); break;
-                 case BuffType::WEAPON_FIRE_RATE:   if(weaponComp) weaponComp->decreaseFireRate(intAmount); break;
-                 case BuffType::WEAPON_PROJ_COUNT:  if(weaponComp) weaponComp->increaseProjectileCount(intAmount); break;
-                 case BuffType::WEAPON_PIERCE:      if(weaponComp) weaponComp->increasePierce(intAmount); break;
-                 case BuffType::WEAPON_BURST_COUNT: if(weaponComp) weaponComp->increaseBurstCount(intAmount); break;
-                    // Player Buffs
-                case BuffType::PLAYER_HEAL:
-                     if (healthComp) {
-                         int maxHP = healthComp->getMaxHealth();
-                         // Calculate 10% of max HP (using floatAmount which is 10.0f)
-                         int healAmount = static_cast<int>(maxHP * (floatAmount / 100.0f));
-                         healthComp->heal(healAmount); // Call the heal method
-                        //  std::cout << "Player healed for " << healAmount << " HP." << std::endl;
-                     } else {
-                          std::cerr << "Error: Player has no HealthComponent to heal!" << std::endl;
-                     }
-                     break;
-                case BuffType::INVALID: // Fallthrough intended
-                 default:
-                     std::cerr << "Warning: Invalid or unknown BuffType selected!" << std::endl;
-                     break;
-             }
-
-             exitBuffSelection(); // Exit selection state after applying
-         }
+    if (!isInBuffSelection || !playerEntity || index < 0 || index >= static_cast<int>(currentBuffOptions.size())) {
+        // Exit if not in buff selection, player doesn't exist, or index is invalid
+        if (isInBuffSelection) exitBuffSelection(); // Still exit if selection is active but apply failed
+        return;
     }
+
+    const BuffInfo& selectedBuff = currentBuffOptions[index];
+    int intAmount = static_cast<int>(selectedBuff.amount);
+    float floatAmount = selectedBuff.amount;
+
+    std::cout << "Applying buff: " << selectedBuff.name << " (Type: " << static_cast<int>(selectedBuff.type) << ")" << std::endl; // Debug
+
+    // Handle buffs that don't need component iteration first (Weapon, Player)
+    WeaponComponent* weaponComp = playerEntity->hasComponent<WeaponComponent>() ? &playerEntity->getComponent<WeaponComponent>() : nullptr;
+    HealthComponent* healthComp = playerEntity->hasComponent<HealthComponent>() ? &playerEntity->getComponent<HealthComponent>() : nullptr;
+
+    bool buffApplied = false; // Flag to track if any buff was successfully applied
+
+    switch (selectedBuff.type) {
+        // --- Weapon Buffs ---
+        case BuffType::WEAPON_DAMAGE:
+            if(weaponComp) { weaponComp->increaseDamage(intAmount); buffApplied = true; }
+            break;
+        case BuffType::WEAPON_FIRE_RATE:
+            if(weaponComp) { weaponComp->decreaseFireRate(intAmount); buffApplied = true; }
+            break;
+        case BuffType::WEAPON_PROJ_COUNT:
+            if(weaponComp) { weaponComp->increaseProjectileCount(intAmount); buffApplied = true; }
+            break;
+        case BuffType::WEAPON_PIERCE:
+            if(weaponComp) { weaponComp->increasePierce(intAmount); buffApplied = true; }
+            break;
+        case BuffType::WEAPON_BURST_COUNT:
+            if(weaponComp) { weaponComp->increaseBurstCount(intAmount); buffApplied = true; }
+            break;
+
+        // --- Player Buffs ---
+        case BuffType::PLAYER_HEAL:
+            if (healthComp) {
+                int maxHP = healthComp->getMaxHealth();
+                int healAmount = static_cast<int>(maxHP * (floatAmount / 100.0f));
+                healthComp->heal(healAmount);
+                std::cout << "Player healed for " << healAmount << " HP." << std::endl; // Debug
+                buffApplied = true;
+            } else {
+                 std::cerr << "Error: Player has no HealthComponent to heal!" << std::endl;
+            }
+            break;
+
+        // --- Spell Buffs (These require iteration) ---
+        case BuffType::FIRE_SPELL_DAMAGE:
+        case BuffType::FIRE_SPELL_COOLDOWN:
+        case BuffType::FIRE_SPELL_PIERCE:
+        case BuffType::FIRE_SPELL_DURATION: // Assuming you added increaseDuration to SpellComponent
+        case BuffType::STAR_SPELL_DAMAGE:
+        case BuffType::STAR_SPELL_COOLDOWN:
+        case BuffType::STAR_SPELL_PIERCE:
+        case BuffType::STAR_SPELL_PROJ_COUNT:
+            { // Scope for spellComp iteration
+                // Use the new getAllComponents() method (requires adding it to Entity class)
+                for (const auto& compPtr : playerEntity->getAllComponents()) {
+                    // Try to cast the component pointer to SpellComponent*
+                    if (SpellComponent* spellComp = dynamic_cast<SpellComponent*>(compPtr.get())) {
+                        // Check the tag and apply the buff if it matches the type
+                        switch (selectedBuff.type) {
+                            // Fire Spell ("spell" tag)
+                            case BuffType::FIRE_SPELL_DAMAGE:   if (spellComp->tag == "spell") { spellComp->increaseDamage(intAmount); buffApplied = true; } break;
+                            case BuffType::FIRE_SPELL_COOLDOWN: if (spellComp->tag == "spell") { spellComp->decreaseCooldown(intAmount); buffApplied = true; } break;
+                            case BuffType::FIRE_SPELL_PIERCE:   if (spellComp->tag == "spell") { spellComp->increasePierce(intAmount); buffApplied = true; } break;
+                            case BuffType::FIRE_SPELL_DURATION: if (spellComp->tag == "spell") { /* spellComp->increaseDuration(intAmount); buffApplied = true; */ } break; // Add increaseDuration if needed
+
+                            // Star Spell ("star" tag)
+                            case BuffType::STAR_SPELL_DAMAGE:   if (spellComp->tag == "star") { spellComp->increaseDamage(intAmount); buffApplied = true; } break;
+                            case BuffType::STAR_SPELL_COOLDOWN: if (spellComp->tag == "star") { spellComp->decreaseCooldown(intAmount); buffApplied = true; } break;
+                            case BuffType::STAR_SPELL_PIERCE:   if (spellComp->tag == "star") { spellComp->increasePierce(intAmount); buffApplied = true; } break;
+                            case BuffType::STAR_SPELL_PROJ_COUNT:if (spellComp->tag == "star") { spellComp->increaseProjectileCount(intAmount); buffApplied = true; } break;
+
+                            default: break; // Ignore other buff types handled outside the loop
+                        }
+                    }
+                }
+            } // End scope for spellComp iteration
+            break; // Break from the outer switch for spell buff types
+
+        // --- Invalid/Default ---
+        case BuffType::INVALID: // Fallthrough intended
+        default:
+            std::cerr << "Warning: Invalid or unknown BuffType selected (" << static_cast<int>(selectedBuff.type) << ")!" << std::endl;
+            break;
+    }
+
+    if (!buffApplied) {
+         std::cerr << "Warning: Selected buff '" << selectedBuff.name << "' could not be applied (missing component or incorrect type)." << std::endl;
+    }
+
+    // Exit selection state regardless of whether buff was applied (user made a choice)
+    exitBuffSelection();
 }
 void Game::togglePause() {
     isPaused = !isPaused;

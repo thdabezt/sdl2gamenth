@@ -6,6 +6,7 @@
 #include "../TextureManager.h"
 #include "../Vector2D.h"
 
+
 class ColliderComponent : public Component {
 public:
     SDL_Rect collider;
@@ -81,6 +82,12 @@ public:
             collider.w = colliderWidth;
             collider.h = colliderHeight;
         }
+        else if (tag == "projectile") {
+            collider.x = static_cast<int>(transform->position.x) ;
+            collider.y = static_cast<int>(transform->position.y);
+            collider.w = colliderWidth;
+            collider.h = colliderHeight;
+        }
         else if (tag != "terrain") {
             collider.x = static_cast<int>(transform->position.x);
             collider.y = static_cast<int>(transform->position.y);
@@ -95,6 +102,7 @@ public:
     }
 
     void draw() override {
+        bool debug = false ;
         // Set the color for the collision box (e.g., red)
         SDL_SetRenderDrawColor(Game::renderer, 255, 0, 0, 255);
 
@@ -105,12 +113,14 @@ public:
             collider.w,
             collider.h
         };
-
+        if(debug){
         // Draw the collision box
-        // SDL_RenderDrawRect(Game::renderer, &debugRect);
+        SDL_RenderDrawRect(Game::renderer, &debugRect);
 
         // Reset the render color to white
-        // SDL_SetRenderDrawColor(Game::renderer, 255, 255, 255, 255);
+        SDL_SetRenderDrawColor(Game::renderer, 255, 255, 255, 255);
+        }
+       
     }
 };
 

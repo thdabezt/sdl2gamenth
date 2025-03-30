@@ -53,7 +53,7 @@ class Entity {
         Manager& manager;
         bool active = true;
         std::vector<std::unique_ptr<Component>> components;
-
+    
         ComponentArray componentArray;
         ComponentBitSet componentBitSet;
         GroupBitset groupBitset;
@@ -61,7 +61,9 @@ class Entity {
     public:
     Entity(Manager& mManager) : manager(mManager) {}
     bool isDestroyed = false; // Add this flag
-
+    const std::vector<std::unique_ptr<Component>>& getAllComponents() const {
+        return components;
+    }
     void update() {
         for (auto& c : components) c->update();
         

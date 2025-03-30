@@ -20,13 +20,32 @@ class WeaponComponent;
 
 // Buff Type Enum
 enum class BuffType {
-    // Spell Buffs
-    SPELL_DAMAGE, SPELL_COOLDOWN, /* SPELL_PROJ_SPEED, */ SPELL_PROJ_COUNT, /* SPELL_PROJ_SIZE, */ SPELL_PIERCE, // <-- REMOVED
-    // Weapon Buffs
-    WEAPON_DAMAGE, WEAPON_FIRE_RATE, WEAPON_PROJ_COUNT, WEAPON_PIERCE, WEAPON_BURST_COUNT,
-    // Player Buffs
+    // --- Fire Spell ("spell" tag) Buffs ---
+    FIRE_SPELL_DAMAGE,
+    FIRE_SPELL_COOLDOWN,
+    // FIRE_SPELL_PROJ_SPEED, // Uncomment or add if needed
+    // FIRE_SPELL_PROJ_COUNT, // Note: Spiral spell doesn't use count currently
+    FIRE_SPELL_DURATION, // Example: Increase spiral duration
+    FIRE_SPELL_PIERCE,
+
+    // --- Star Spell ("star" tag) Buffs ---
+    STAR_SPELL_DAMAGE,
+    STAR_SPELL_COOLDOWN,
+    // STAR_SPELL_PROJ_SPEED, // Uncomment or add if needed
+    STAR_SPELL_PROJ_COUNT, // Star spell uses random direction, count might be relevant
+    STAR_SPELL_PIERCE,
+
+    // --- Weapon Buffs ---
+    WEAPON_DAMAGE,
+    WEAPON_FIRE_RATE,
+    WEAPON_PROJ_COUNT,
+    WEAPON_PIERCE,
+    WEAPON_BURST_COUNT,
+
+    // --- Player Buffs ---
     PLAYER_HEAL,
-    INVALID
+
+    INVALID // Keep for error handling
 };
 
 // Buff Info Struct
@@ -73,7 +92,7 @@ public:
     int getMusicVolume() const { return musicVolume; } // Getter for UI
     int getSfxVolume() const { return sfxVolume; }   // Getter for UI
     enum groupLabels : std::size_t {
-        groupMap, groupPlayers, groupColliders, groupProjectiles, groupEnemies
+        groupMap, groupPlayers, groupColliders, groupProjectiles, groupEnemies, groupExpOrbs 
     };
 
 private:

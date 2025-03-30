@@ -33,7 +33,7 @@ public:
             // Check if GetMusic returned a valid pointer:
             if (music) {
                 Mix_HaltMusic();
-                std::cout << "Attempting Mix_PlayMusic..." << std::endl; // <<< ADD THIS BACK
+                // std::cout << "Attempting Mix_PlayMusic..." << std::endl; // <<< ADD THIS BACK
                 if (Mix_PlayMusic(music, loops) == -1) {
                     //  std::cerr << "SoundComponent: Failed to play music: " << Mix_GetError() << std::endl;
                 } else {
@@ -57,28 +57,28 @@ public:
             Mix_Chunk* sound = Game::assets->GetSoundEffect(soundEffectIDs[internalName]);
             if (sound) {
                 // <<< ADD DEBUG LOG Before Playing >>>
-                std::cout << "DEBUG: Attempting to play SFX '" << internalName
-                          << "' (Asset: " << soundEffectIDs[internalName]
-                          << ") on any channel. Current SFX Volume Setting: "
-                          << Game::instance->getSfxVolume() << std::endl; // Access volume via Game instance
+                // std::cout << "DEBUG: Attempting to play SFX '" << internalName
+                //           << "' (Asset: " << soundEffectIDs[internalName]
+                //           << ") on any channel. Current SFX Volume Setting: "
+                //           << Game::instance->getSfxVolume() << std::endl; // Access volume via Game instance
     
                 // Mix_PlayChannel takes channel (-1 for first available), chunk*, loops (0=play once)
                 channel = Mix_PlayChannel(-1, sound, loops); // Play the sound
     
                 // <<< ADD DEBUG LOG After Playing >>>
                 if (channel == -1) {
-                    std::cerr << "DEBUG: Mix_PlayChannel failed for SFX '" << internalName
-                              << "'. SDL_mixer Error: " << Mix_GetError() << std::endl;
+                    // std::cerr << "DEBUG: Mix_PlayChannel failed for SFX '" << internalName
+                    //           << "'. SDL_mixer Error: " << Mix_GetError() << std::endl;
                 } else {
-                    std::cout << "DEBUG: Mix_PlayChannel succeeded for SFX '" << internalName
-                              << "' on channel " << channel << "." << std::endl;
+                    // std::cout << "DEBUG: Mix_PlayChannel succeeded for SFX '" << internalName
+                    //           << "' on channel " << channel << "." << std::endl;
                     // Optional: Set volume on the specific channel *after* playing,
                     // if Mix_Volume(-1, ...) isn't working as expected.
                     // Mix_Volume(channel, Game::instance->getSfxVolume());
                 }
     
             } else {
-                std::cerr << "SoundComponent: Could not get sound effect chunk with asset ID: " << soundEffectIDs[internalName] << std::endl;
+                // std::cerr << "SoundComponent: Could not get sound effect chunk with asset ID: " << soundEffectIDs[internalName] << std::endl;
             }
         } else {
             std::cerr << "SoundComponent: No sound effect registered with internal name: " << internalName << std::endl;

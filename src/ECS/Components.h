@@ -11,4 +11,5 @@
 #include "Player.h"
 #include "SpellComponent.h" 
 #include "SoundComponent.h" // Add this line
+#include "ExpOrbComponent.h"
 // #include "EnemyAi.h"
