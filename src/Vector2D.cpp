@@ -100,3 +100,15 @@ std::ostream& operator<<(std::ostream& stream, const Vector2D& vec) {
     stream << "(" << vec.x << "," << vec.y << ")";
     return stream;
 }
+
+float Vector2D::Distance(const Vector2D& a, const Vector2D& b) {
+    float dx = a.x - b.x;
+    float dy = a.y - b.y;
+    return std::sqrt(dx * dx + dy * dy);
+}
+
+float Vector2D::DistanceSq(const Vector2D& a, const Vector2D& b) {
+    float dx = a.x - b.x;
+    float dy = a.y - b.y;
+    return dx * dx + dy * dy; // Return squared distance
+}

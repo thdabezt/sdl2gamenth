@@ -1,89 +1,66 @@
 #include "ExpOrbComponent.h"
 
 // Include FULL definitions needed for the implementation
-#include "Components.h"
-#include "Player.h"           // Include Player.h for the Player class definition
-#include "../game.h"          // Include game.h for Game instance and PlayerManager access
-#include "../Collision.h"     // Include Collision.h for Collision::AABB implementation
-#include <stdexcept>         // For std::runtime_error
+#include "Components.h" // Includes TransformComponent.h, ColliderComponent.h etc.
+#include "Player.h"
+#include "../game.h"
+#include "../Collision.h"
+#include <stdexcept>
+#include <iostream>
 
-// Constructor Definition
-ExpOrbComponent::ExpOrbComponent(int exp) : experienceAmount(exp) {}
+// --- REMOVED Constructor Definition (it's inline in .h now) ---
 
-// init() Definition (can also be moved here, or kept inline in .h if simple)
+// --- init() Definition ---
 void ExpOrbComponent::init() {
-    if (!entity->hasComponent<TransformComponent>()) {
-        entity->addComponent<TransformComponent>();
-    }
+    initialized = false; // Reset flag
+    if (!entity) { std::cerr << "Error in ExpOrbComponent::init: Entity is null!" << std::endl; return; }
+
+    if (!entity->hasComponent<TransformComponent>()) { std::cerr << "Error in ExpOrbComponent::init: Entity missing TransformComponent!" << std::endl; return; }
     transform = &entity->getComponent<TransformComponent>();
+    if (!transform) { std::cerr << "Error in ExpOrbComponent::init: Failed to get TransformComponent!" << std::endl; return; }
 
-    if (!entity->hasComponent<ColliderComponent>()) {
-        entity->addComponent<ColliderComponent>("exp_orb", 32, 32);
-    }
+    // ColliderComponent is added in game.cpp before this component now
+    if (!entity->hasComponent<ColliderComponent>()) { std::cerr << "Error in ExpOrbComponent::init: Entity missing ColliderComponent!" << std::endl; return; }
     collider = &entity->getComponent<ColliderComponent>();
+     if (!collider) { std::cerr << "Error in ExpOrbComponent::init: Failed to get ColliderComponent!" << std::endl; return; }
 
-    // Ensure group label is accessible (it's in Game class)
-    entity->addGroup(Game::groupExpOrbs);
+    entity->addGroup(Game::groupExpOrbs); // Add to group
+
+    initialized = true; // Set flag on success
 }
 
 
-// update() Definition
+// --- update() Definition ---
 void ExpOrbComponent::update() {
+    if (!initialized) return; // <<< CHECK Flag
     if (collected) return;
-
-    // Ensure collider is initialized (init should have run)
+    // Keep internal checks too
     if (!collider || !Game::instance) return;
 
     Entity* playerEntityPtr = nullptr;
+    Player* playerManager = Game::instance->getPlayerManager();
+    if (!playerManager) return;
+
     try {
-        // Make sure Game::getPlayer() is accessible and returns a valid entity
-        playerEntityPtr = &Game::instance->getPlayer();
+        playerEntityPtr = &playerManager->getEntity();
     } catch (const std::runtime_error& e) {
         std::cerr << "ExpOrbComponent: Error getting player entity: " << e.what() << std::endl;
         return;
     }
 
-    // Ensure player entity and its collider are valid
+    // Check player components *after* getting the pointer
     if (playerEntityPtr && playerEntityPtr->isActive() && playerEntityPtr->hasComponent<ColliderComponent>()) {
         auto& playerCollider = playerEntityPtr->getComponent<ColliderComponent>();
 
-        // --- Collision Check ---
-        // Now, when this .cpp file is compiled, the full definitions of
-        // ColliderComponent (from ColliderComponent.h) and Collision::AABB
-        // (from Collision.cpp linked later) will be available.
         if (Collision::AABB(collider->collider, playerCollider.collider)) {
-            std::cout << "Player collided with EXP orb! Granting " << experienceAmount << " EXP." << std::endl; // Debug
-
-            Player* playerManager = Game::instance->getPlayerManager();
-            if (playerManager) {
-                playerManager->addExperience(experienceAmount);
-            } else {
-                std::cerr << "ExpOrbComponent: PlayerManager not found!" << std::endl;
-            }
-
+            // Collision detected
+            playerManager->addExperience(experienceAmount);
             collected = true;
-            entity->destroy();
+             if (entity) { // Destroy the orb entity
+                 entity->destroy();
+             }
         }
     }
-    
 }
-// void ExpOrbComponent::draw() {
-//     // Only draw if the collider exists and we have a renderer
-//     if (!collider || !Game::renderer) return;
 
-//     // Get the collider rectangle
-//     SDL_Rect debugRect = collider->collider;
-
-//     // Adjust position based on camera
-//     debugRect.x -= Game::camera.x;
-//     debugRect.y -= Game::camera.y;
-
-//     // Set draw color (e.g., yellow for EXP orbs)
-//     SDL_SetRenderDrawColor(Game::renderer, 255, 255, 0, 255); // Yellow, fully opaque
-
-//     // Draw the rectangle outline
-//     SDL_RenderDrawRect(Game::renderer, &debugRect);
-
-//     // Optional: Reset draw color back to default (e.g., white) if needed elsewhere
-//     // SDL_SetRenderDrawColor(Game::renderer, 255, 255, 255, 255);
-// }
+// void ExpOrbComponent::draw() { // Optional draw method definition }

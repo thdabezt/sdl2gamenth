@@ -1,88 +1,81 @@
 #pragma once
 
-#include "ECS.h"       // <<< Include ECS.h for Entity type
+#include "ECS.h"
 #include "../Vector2D.h"
 #include <cmath>
 #include <iostream>
 #include "../game.h"
-#include <set>         // <<< Include set
-#include <algorithm>   // <<< Include algorithm (might be needed for set operations later)
-
-// Forward declare TransformComponent
-class TransformComponent;
+#include <set>
+#include <algorithm>
+#include "Components.h" // Include Components.h for TransformComponent definition
 
 class ProjectileComponent : public Component {
-public:
-    ProjectileComponent(int rng, int dmg, Vector2D vel, int pierce = 1)
-        : range(rng), damage(dmg), velocity(vel), maxPierce(pierce > 0 ? pierce : 1)
-    {
-        transform = nullptr;
-        // enemiesHit count removed, use hitEnemies.size()
-    }
-
-    ~ProjectileComponent() {}
-
-    void init() override {
-        if (!entity->hasComponent<TransformComponent>()) {
-            //  std::cerr << "ProjectileComponent Error: Missing TransformComponent during init!" << std::endl;
-             entity->destroy();
-             return;
-        }
-        transform = &entity->getComponent<TransformComponent>();
-        startPos = transform->position;
-    }
-
-    int getDamage() const { return damage; }
-
-    // --- Check if a specific enemy has been hit by this projectile ---
-    bool hasHit(Entity* enemy) const {
-        return hitEnemies.count(enemy) > 0; // Check if enemy pointer exists in the set
-    }
-
-    // --- Record that a specific enemy has been hit ---
-    void recordHit(Entity* enemy) {
-        hitEnemies.insert(enemy); // Add enemy pointer to the set
-        // std::cout << "Projectile recorded hit on enemy: " << enemy << ". Total unique hits: " << hitEnemies.size() << "/" << maxPierce << std::endl; // Debug
-    }
-
-    // --- Check if projectile should be destroyed based on unique hits ---
-    bool shouldDestroy() const {
-        // Destroy if the number of unique enemies hit reaches the pierce limit
-        return hitEnemies.size() >= static_cast<decltype(hitEnemies.size())>(maxPierce);
-    }
-
-    void update() override {
-        // ... (update logic for movement, range, bounds remains the same as previous step) ...
-        if (!transform) return;
-
-        transform->position.x += velocity.x;
-        transform->position.y += velocity.y;
-
-        if (range > 0) {
-            float distSq = (transform->position.x - startPos.x) * (transform->position.x - startPos.x) +
-                           (transform->position.y - startPos.y) * (transform->position.y - startPos.y);
-            if (distSq > (static_cast<float>(range) * range)) {
-                entity->destroy();
-                return;
-            }
-        }
-
-        if (transform->position.x > Game::camera.x + Game::camera.w + 50 ||
-            transform->position.x < Game::camera.x - 50 ||
-            transform->position.y > Game::camera.y + Game::camera.h + 50 ||
-            transform->position.y < Game::camera.y - 50) {
-            entity->destroy();
-            return;
-        }
-    }
-
 private:
-    TransformComponent *transform;
+    TransformComponent *transform = nullptr; // Pointer now checked
     Vector2D startPos;
     int range = 0;
     int damage = 0;
     Vector2D velocity;
     int maxPierce = 1;
-    // int enemiesHit = 0; // Removed, use hitEnemies.size()
-    std::set<Entity*> hitEnemies; // <<< ADDED: Set to store pointers to unique enemies hit
+    std::set<Entity*> hitEnemies;
+
+    bool initialized = false; // <<< ADD Initialization Flag
+
+public:
+    ProjectileComponent(int rng, int dmg, Vector2D vel, int pierce = 1)
+        : range(rng), damage(dmg), velocity(vel), maxPierce(pierce > 0 ? pierce : 1) {}
+
+    ~ProjectileComponent() {}
+
+    void init() override {
+        initialized = false; // Reset flag
+        if (!entity) { std::cerr << "Error in ProjectileComponent::init: Entity is null!" << std::endl; return; }
+        if (!entity->hasComponent<TransformComponent>()) { std::cerr << "Error in ProjectileComponent::init: Missing TransformComponent!" << std::endl; if (entity) entity->destroy(); return; }
+        transform = &entity->getComponent<TransformComponent>();
+
+        if (!transform) { std::cerr << "Error in ProjectileComponent::init: Failed to get TransformComponent pointer!" << std::endl; if (entity) entity->destroy(); return; }
+
+        startPos = transform->position;
+        initialized = true; // <<< SET Flag on success
+    }
+
+    int getDamage() const { return damage; }
+
+    bool hasHit(Entity* enemy) const {
+        return hitEnemies.count(enemy) > 0;
+    }
+
+    void recordHit(Entity* enemy) {
+        hitEnemies.insert(enemy);
+    }
+
+    bool shouldDestroy() const {
+        return hitEnemies.size() >= static_cast<decltype(hitEnemies.size())>(maxPierce);
+    }
+
+    void update() override {
+        if (!initialized) return; // <<< CHECK Flag
+        if (!transform) { if (entity) entity->destroy(); return; } // Keep internal check
+
+        transform->position.x += velocity.x;
+        transform->position.y += velocity.y;
+
+        if (range > 0) {
+            float distSq = Vector2D::DistanceSq(transform->position, startPos);
+             if (distSq > (static_cast<float>(range) * range)) {
+                 if (entity) entity->destroy();
+                 return;
+             }
+        }
+
+        // Check out-of-bounds relative to camera + buffer
+        if (transform->position.x > Game::camera.x + Game::camera.w + 100 ||
+            transform->position.x < Game::camera.x - 100 ||
+            transform->position.y > Game::camera.y + Game::camera.h + 100 ||
+            transform->position.y < Game::camera.y - 100)
+        {
+             if (entity) entity->destroy();
+             return;
+        }
+    }
 };

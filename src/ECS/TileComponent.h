@@ -16,7 +16,8 @@ public:
     }
     TileComponent(int srcX, int srcY, int xpos, int ypos, int tsize, int tscale, std::string id){
 
-        texture = Game::assets->GetTexture(id);
+        // Use Game::instance to access the non-static assets pointer
+        texture = Game::instance->assets->GetTexture(id);
 
         position.x = static_cast<float>(xpos);
 		position.y = static_cast<float>(ypos);

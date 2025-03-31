@@ -16,6 +16,7 @@ public:
     Vector2D& Divide(const Vector2D& vec);   // Element-wise
     Vector2D& Normalize();
     Vector2D& Zero();
+    
 
     // Compound Assignment Operators (Modify 'this' object)
     Vector2D& operator+=(const Vector2D& vec);
@@ -24,11 +25,9 @@ public:
     Vector2D& operator/=(const Vector2D& vec); // Element-wise
 
     // NOTE: Removed the incorrect member operator*(int)
-    static float Distance(const Vector2D& a, const Vector2D& b) {
-        float dx = a.x - b.x;
-        float dy = a.y - b.y;
-        return std::sqrt(dx * dx + dy * dy);
-    }
+    static float Distance(const Vector2D& a, const Vector2D& b); // Keep existing Distance
+    static float DistanceSq(const Vector2D& a, const Vector2D& b); // Add Squared Distance
+    
     // Declare stream output operator as a friend if needed for private members (not needed here)
     friend std::ostream& operator<<(std::ostream& stream, const Vector2D& vec);
 };

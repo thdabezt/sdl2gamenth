@@ -28,7 +28,7 @@ public:
     void playBackgroundMusic(int loops = -1) {
         if (!backgroundMusicID.empty()) {
             // 'music' is declared here:
-            Mix_Music* music = Game::assets->GetMusic(backgroundMusicID);
+            Mix_Music* music = Game::instance->assets->GetMusic(backgroundMusicID);
     
             // Check if GetMusic returned a valid pointer:
             if (music) {
@@ -54,7 +54,7 @@ public:
     int playSoundEffect(const std::string& internalName, int loops = 0) {
         int channel = -1; // Store the result
         if (soundEffectIDs.count(internalName)) {
-            Mix_Chunk* sound = Game::assets->GetSoundEffect(soundEffectIDs[internalName]);
+            Mix_Chunk* sound = Game::instance->assets->GetSoundEffect(soundEffectIDs[internalName]);
             if (sound) {
                 // <<< ADD DEBUG LOG Before Playing >>>
                 // std::cout << "DEBUG: Attempting to play SFX '" << internalName

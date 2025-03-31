@@ -1,16 +1,18 @@
 #pragma once
 
 #include "ECS.h"
-#include "Components.h"     // Include this for base Component class, etc.
-// #include "ColliderComponent.h" // Remove the explicit include we added before
+#include "Components.h"
 #include <iostream>
 
-// Forward declare needed components if not brought in by Components.h for pointers
+// Forward declare needed components
 class TransformComponent;
 class ColliderComponent;
-class Player; // Forward declare Player if needed for playerManager type
+class Player;
 
 class ExpOrbComponent : public Component {
+private:
+    bool initialized = false; // <<< ADD Initialization Flag
+
 public:
     int experienceAmount;
 
@@ -19,10 +21,12 @@ public:
     ColliderComponent* collider = nullptr;
     bool collected = false;
 
-    ExpOrbComponent(int exp); // Constructor declaration
+    // Keep inline constructor definition here
+    ExpOrbComponent(int exp) : experienceAmount(exp) {}
 
+    // Declarations for methods defined in .cpp
     void init() override;
-    void update() override; // <<< DECLARATION ONLY
+    void update() override;
 
-    // void draw() override;
+    // void draw() override; // Optional draw method
 };

@@ -6,20 +6,23 @@
 #include "Animation.h"
 #include <map>
 #include "../AssetManager.h"
+#include "../game.h" // Include game.h for Game::instance
+#include <iostream> // For error logging
 
 class SpriteComponent : public Component {
 private:
-    TransformComponent *transform;
-    SDL_Texture *texture;
-        SDL_Rect srcRect, destRect;
+    TransformComponent *transform = nullptr; // Initialize to nullptr
+    SDL_Texture *texture = nullptr;          // Initialize to nullptr
+    SDL_Rect srcRect, destRect;
 
     bool animated = false;
     int frames = 0;
     int speed = 100; //ms
 
+    bool initialized = false; // <<< ADD Initialization Flag
 
 public:
-bool isHit = false;
+    bool isHit = false;
     Uint32 hitTime = 0;
     Uint32 hitDuration = 150; // Flash duration in milliseconds
     SDL_Color tint = {255, 255, 255, 255}; // Add this line to declare the tint variable
@@ -27,8 +30,8 @@ bool isHit = false;
     SDL_Texture* getTexture() {
         return texture;
     }
-    
-    
+
+
     int animIndex = 0;
 
     std::map<const char*, Animation> animations;
@@ -48,31 +51,73 @@ bool isHit = false;
         animations.emplace("Walk", walk);
 
         Play("Idle");
-        
+
         setTex(id);
     }
 
     ~SpriteComponent() {
-        
+        // Texture is managed by AssetManager, no need to destroy here generally
     }
     void setTex(std::string id){ {
-        texture = Game::assets->GetTexture(id);
+        // Use Game::instance to access the non-static assets pointer
+        // Add null check for gameInstance and assets
+        if (Game::instance && Game::instance->assets) {
+             texture = Game::instance->assets->GetTexture(id);
+        } else {
+            std::cerr << "Error in SpriteComponent::setTex: Game::instance or Game::instance->assets is null!" << std::endl;
+            texture = nullptr; // Ensure texture is null if assets couldn't be accessed
+        }
     }}
 
     void init() override {
+        initialized = false; // Reset flag at start of init
+        // Ensure the entity exists before proceeding
+        if (!entity) {
+            std::cerr << "Error in SpriteComponent::init: Entity is null!" << std::endl;
+            return;
+        }
+
+        // Check if the entity has the required TransformComponent
+        if (!entity->hasComponent<TransformComponent>()) {
+             std::cerr << "Error in SpriteComponent::init: Entity missing TransformComponent!" << std::endl;
+             return; // Cannot initialize without TransformComponent
+        }
+
+        // Get the TransformComponent
         transform = &entity->getComponent<TransformComponent>();
+
+        // --- ADD NULL CHECK for transform pointer ---
+        if (!transform) {
+            std::cerr << "Error in SpriteComponent::init: Failed to get TransformComponent pointer (is null)!" << std::endl;
+             return;
+        }
+        // --- End NULL CHECK ---
+
+
+        // Now it's safe to access transform members
         srcRect.x = srcRect.y = 0;
         srcRect.w = transform->width;
-        srcRect.h = transform->height; 
-        
+        srcRect.h = transform->height;
+
+        // If all checks passed and setup complete:
+        initialized = true; // <<< SET Flag to true only on success
     }
 
     void update() override {
+        if (!initialized) return; // <<< CHECK Flag at start of update
+        // Keep internal null checks too
+        if (!transform) return;
+
         if(animated){
             srcRect.x = srcRect.w * static_cast<int>((SDL_GetTicks() / speed) % frames);
         }
-        srcRect.y = animIndex * transform->height;
-        
+        // Ensure animIndex is valid and transform height is non-zero before division/multiplication
+        if (transform->height > 0) {
+            srcRect.y = animIndex * transform->height;
+        } else {
+            srcRect.y = 0; // Default if height is invalid
+        }
+
         destRect.x = static_cast<int>(transform->position.x) - Game::camera.x;
         destRect.y = static_cast<int>(transform->position.y) - Game::camera.y;
         destRect.w = transform->width * transform->scale;
@@ -80,41 +125,38 @@ bool isHit = false;
     }
 
     void draw() override {
-        if (!texture) {
-            // Optional: Log an error here if you have a logging system
-            // std::cerr << "Error: Trying to draw SpriteComponent with null texture!" << std::endl;
-            return; // Don't try to draw if the texture is null
-        }
+         if (!initialized) return; // <<< CHECK Flag at start of draw (optional but safe)
+
+         if (!texture) return;
+         if (!transform) return;
+
         // Calculate the current tint color
         SDL_Color currentTint = tint;
-        
+
         // If hit, apply red tint for this specific entity
         if (isHit) {
             if (SDL_GetTicks() > hitTime + hitDuration) {
-                // Reset tint after duration
                 isHit = false;
                 currentTint = {255, 255, 255, 255}; // Reset to normal color
             } else {
-                // Use red tint during hit duration
                 currentTint = {255, 100, 100, 255}; // Red tint
             }
         }
-        
-        // Apply the current tint for this render call only
+
         SDL_SetTextureColorMod(texture, currentTint.r, currentTint.g, currentTint.b);
-        
-        // Draw the sprite
         TextureManager::Draw(texture, srcRect, destRect, spriteFlip);
-        
-        // Reset texture color back to normal after drawing
-        SDL_SetTextureColorMod(texture, 255, 255, 255);
+        SDL_SetTextureColorMod(texture, 255, 255, 255); // Reset
     }
 
     void Play(const char* animName){
-        frames = animations[animName].frames;
-        animIndex = animations[animName].index;
-        speed = animations[animName].speed;
+        // Check if the animation exists before trying to access it
+        if (animations.count(animName)) {
+            frames = animations[animName].frames;
+            animIndex = animations[animName].index;
+            speed = animations[animName].speed;
+        } else {
+            std::cerr << "Warning: Animation '" << animName << "' not found in SpriteComponent!" << std::endl;
+        }
     }
 
 };
-

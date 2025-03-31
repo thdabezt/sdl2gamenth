@@ -1,3 +1,4 @@
+// Fetched content of Game/src/game.cpp
 #include "game.h"
 #include <iostream>
 #include <SDL.h>
@@ -14,167 +15,235 @@
 #include <vector>
 #include <cstdlib> // For std::rand()
 #include <sstream>
+#include "SaveLoadManager.h" // Include the manager
 
 
 // Define the static instance
 Game* Game::instance = nullptr;
-Map *map;
+// Map *map;
 SDL_Event Game::event;
-std::vector<Vector2D> spawnPoints;
+// std::vector<Vector2D> spawnPoints;
 SDL_Renderer *Game::renderer = nullptr;
 int Game::mouseX = 0;
 int Game::mouseY = 0;
-Manager manager; // Note: This manager is global/static relative to this file. Consider ownership.
+// Manager manager; // Note: This manager is global/static relative to this file. Consider ownership.
 
 SDL_Rect Game::camera = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
 
 // Note: AssetManager is static. Be mindful of its lifecycle if resetting games.
-AssetManager *Game::assets = new AssetManager(&manager);
+// AssetManager *Game::assets = new AssetManager(&manager);
 bool Game::isRunning = false;
 bool godmode = false;
 // auto& player(manager.addEntity()); // REMOVED global player
 
+// --- Game Constructor ---
 Game::Game() {
+    if (instance != nullptr) {
+        std::cerr << "Warning: Multiple Game instances detected!" << std::endl;
+    }
     instance = this;
     std::srand(static_cast<unsigned>(std::time(nullptr)));
-    playerEntity = nullptr; // Initialize member pointer
-    playerManager = nullptr; // Initialize member pointer
-    ui = nullptr; // Initialize member pointer
-    // window member is removed
+    // Pointers initialized to nullptr via member initialization in .h or here
+    playerEntity = nullptr;
+    playerManager = nullptr;
+    ui = nullptr;
+    map = nullptr;
+    assets = nullptr; // Ensure explicitly null before creation
+    saveLoadManager = nullptr; // Ensure explicitly null before creation
+
+    // Initialize AssetManager using the MEMBER manager
+    assets = new AssetManager(&manager); // Uses the 'manager' member variable
+    // Initialize SaveLoadManager
+    saveLoadManager = new SaveLoadManager(this);
 }
 
+
+// --- Game Destructor ---
 Game::~Game(){
     // Destructor calls clean()
     std::cout << "Game destructor (~Game) called." << std::endl;
-    clean();
+    clean(); // clean() should delete saveLoadManager
     instance = nullptr; // Reset static instance pointer
 }
 
-void Game::init(const char *title, int xpos, int ypos, int width, int height, bool fullscreen){
-    int flags = 0;
-    if(fullscreen){
-        flags = SDL_WINDOW_FULLSCREEN;
-    }
-    // SDL_Init, TTF_Init, IMG_Init, Window/Renderer creation are now handled in main.cpp
 
-    // Use the renderer provided by main.cpp (via static Game::renderer)
+// Full Game::init function from src/game.cpp with latest changes:
+
+void Game::init(const char *title, int xpos, int ypos, int width, int height, bool fullscreen){
+    // Use the renderer provided by main.cpp
     if (Game::renderer) {
         std::cout << "Game::init - Using existing Renderer" << std::endl;
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         // Initialize UI manager
+        delete ui; // Delete previous instance if any
         ui = new UIManager(renderer);
-        ui->init();
-        isRunning = true;
+        if (ui) ui->init();
     } else {
          std::cerr << "Error: Game::init called but Game::renderer is null!" << std::endl;
          isRunning = false;
-         return; // Cannot proceed without a renderer
+         // Clean up potentially allocated members if init fails early
+         if(saveLoadManager) { delete saveLoadManager; saveLoadManager = nullptr; }
+         if(assets) { delete assets; assets = nullptr; }
+         return;
     }
-    Mix_VolumeMusic(musicVolume);
-    Mix_Volume(-1, sfxVolume); // Set default volume for all sound effect channels
-    // Refresh manager before adding entities for this game instance
-    manager.refresh(); // Clean up entities from previous game if manager persists
 
+    Mix_VolumeMusic(musicVolume); Mix_Volume(-1, sfxVolume);
+    manager.refresh();
+
+    // --- Load Textures and Sounds ---
     assets->AddTexture("terrain", MAP);
     assets->AddTexture("player", playerSprites);
     assets->AddTexture("projectile", "sprites/projectile/gunshot.png");
-    assets->AddTexture("fire", "sprites/projectile/fire.png");
-    assets->AddTexture("starproj", "sprites/projectile/star.png");
+    // ... (load other assets using member 'assets') ...
+     assets->AddTexture("fire", "sprites/projectile/fire.png");
+     assets->AddTexture("starproj", "sprites/projectile/star.png");
+     assets->AddTexture("exp_orb_1", "sprites/projectile/gunshot.png");
+     assets->AddTexture("exp_orb_10", "sprites/projectile/gunshot.png");
+     // ... add others ...
+     assets->AddSoundEffect("gunshot_sound", "assets/sound/shot.wav");
+     assets->AddMusic("level_music", "assets/sound/hlcbg.mp3"); // Should work if file exists now
+     assets->AddSoundEffect("fire_spell_sound", "assets/sound/fire_cast.wav"); // Should work if file exists now
+     assets->AddSoundEffect("star_spell_sound", "assets/sound/star_cast.wav"); // Should work if file exists now
 
-    assets->AddTexture("exp_orb_1", "sprites/projectile/gunshot.png");   // Tier 1 (1-9 EXP)
-    assets->AddTexture("exp_orb_10", "sprites/projectile/gunshot.png");  // Tier 2 (10-49 EXP)
-    assets->AddTexture("exp_orb_50", "sprites/projectile/gunshot.png");  // Tier 3 (50-99 EXP)
-    assets->AddTexture("exp_orb_100", "sprites/projectile/gunshot.png"); // Tier 4 (100-249 EXP)
-    assets->AddTexture("exp_orb_250", "sprites/projectile/gunshot.png"); // Tier 5 (250-499 EXP)
-    assets->AddTexture("exp_orb_500", "sprites/projectile/gunshot.png");
 
+    // --- Create Player Entity Structure ---
+    playerEntity = &manager.addEntity();
 
-    // Create and setup player entity as member
-    playerEntity = &manager.addEntity(); // Create the entity for this Game instance
-    playerEntity->addComponent<TransformComponent>(400.0f, 320.0f, CHAR_W, CHAR_H, 2);
+    // --- Add ALL Player Components (Stats ones with Placeholders) ---
+    playerEntity->addComponent<TransformComponent>(CHAR_X, CHAR_Y, CHAR_W, CHAR_H, 2);
     playerEntity->addComponent<SpriteComponent>("player", true);
     playerEntity->addComponent<KeyboardController>();
-    playerEntity->addComponent<ColliderComponent>("player", 32 , 37);
-    playerEntity->addComponent<HealthComponent>(99999999, 99999999); // High health for testing?
-    
-    // Create a pistol (small bullets)
-    assets->AddSoundEffect("gunshot_sound", "assets/sound/shot.wav"); // Assuming path
-    assets->AddMusic("level_music", "assets/sound/hlcbg.mp3"); // Assuming path
-    assets->AddSoundEffect("fire_spell_sound", "assets/sound/fire_cast.wav"); // Example path
-    assets->AddSoundEffect("star_spell_sound", "assets/sound/star_cast.wav"); // Example path
-
-    // Add SoundComponent to player
+    playerEntity->addComponent<ColliderComponent>("player", 32, 37);
     playerEntity->addComponent<SoundComponent>();
-    playerEntity->getComponent<SoundComponent>().addSoundEffect("shoot", "gunshot_sound"); // Map internal name "shoot"
+    playerEntity->getComponent<SoundComponent>().addSoundEffect("shoot", "gunshot_sound");
     playerEntity->getComponent<SoundComponent>().addSoundEffect("fire_cast", "fire_spell_sound");
     playerEntity->getComponent<SoundComponent>().addSoundEffect("star_cast", "star_spell_sound");
-    playerEntity->getComponent<SoundComponent>().setBackgroundMusic("level_music", true, -1); // Set background music to play on start
- 
-    playerEntity->addComponent<WeaponComponent>(
-        "pistol",     // tag
-        25,           // damage
-        1000,          // fireRate (time between bursts)
-        10.0f,         // projectileSpeed
-        2500,          // projectileRange
-        0.1f,         // spreadAngle (small spread for burst accuracy?)
-        1,            // projectilesPerShot (1 projectile per shot in the burst)
-        32,           // projectileSize
-        "projectile", // projectileTexture
-        1,            // projectilePierce
-        3,            // shotsPerBurst (Fires 3 shots per trigger pull)
-        75            // burstDelay (75ms between shots in the burst)
-    );
+    playerEntity->getComponent<SoundComponent>().setBackgroundMusic("level_music", true, -1);
+
+    // Add Health/Weapon/Spells with PLACEHOLDER values (e.g., 0 or 1)
+    playerEntity->addComponent<HealthComponent>(1, 1); // Start with 1 health (avoid 0 max health)
+    playerEntity->addComponent<WeaponComponent>( "placeholder", 0, 99999, 0.0f, 0, 0.0f, 0, 1, "projectile", 1, 1, 999);
+    playerEntity->addComponent<SpellComponent>( "placeholder_spell", 0, 99999, 0.0f, 0, 1, "fire", 0, SpellTrajectory::SPIRAL, 0.0f, 1 );
+    playerEntity->addComponent<SpellComponent>( "placeholder_star", 0, 99999, 0.0f, 0, 1, "starproj", 0, SpellTrajectory::RANDOM_DIRECTION, 0.0f, 1 );
+    // --- End Adding Components ---
+
     playerEntity->addGroup(groupPlayers);
 
-    playerEntity->addComponent<SpellComponent>(
-        "spell",       // tag
-        5,                    // damage
-        200,                  // cooldown (ms) - Maybe faster cooldown for visible spiral?
-        3.0f,                 // projectileSpeed
-        5,                    // projectilesPerCast
-        38,                   // projectileSize
-        "fire",         // projectileTexture
-        3000,                 // duration (ms)
-        SpellTrajectory::SPIRAL, // trajectoryMode
-        8.0f,
-        2                // spiralGrowthRate (pixels per radian, adjust as needed)                
-    );
-    playerEntity->addComponent<SpellComponent>(
-        "star",       // tag
-        5,                    // damage
-        5000,                  // cooldown (ms) - Maybe faster cooldown for visible spiral?
-        3.0f,                 // projectileSpeed
-        0,                    // projectilesPerCast
-        38,                   // projectileSize
-        "starproj",         // projectileTexture
-        3000,                 // duration (ms)
-        SpellTrajectory::RANDOM_DIRECTION, // trajectoryMode
-        8.0f,
-        2                // spiralGrowthRate (pixels per radian, adjust as needed)                
-    );
-    // Increase damage of spiral bolts by 1
-    
-    // Initialize the player manager with the member entity
-    // Delete old one first if it somehow exists (shouldn't if constructor is clean)
+    // --- Create Player Manager ---
     delete playerManager;
-    playerManager = new Player(playerEntity);
+    playerManager = new Player(playerEntity); // PlayerManager uses the entity with placeholder components
 
-    map = new Map("terrain", 1, 32);
-    // Ensure map file path is correct relative to executable
-    map->LoadMap("assets/map.map", MAP_WIDTH, MAP_HEIGHT, 10);
+    // --- Load default state ---
+    // loadGameState will attempt to overwrite the placeholder values in the components
+    bool loadedSuccessfully = false;
+    if (saveLoadManager) {
+        loadedSuccessfully = saveLoadManager->loadGameState("saves/default.state");
+    } else {
+         std::cerr << "Error: SaveLoadManager not initialized!" << std::endl;
+    }
+
+    // --- Handle Load Success/Failure ---
+    if (!loadedSuccessfully) {
+        std::cerr << "Warning: Could not load default.state. Initializing components with default game start values." << std::endl;
+
+        // --- Explicitly Set Default Stats on Components ---
+        // Health
+        if (playerEntity->hasComponent<HealthComponent>()) {
+            auto& healthComp = playerEntity->getComponent<HealthComponent>();
+            healthComp.maxHealth = playerHealth; // from constants.h
+            healthComp.health = playerHealth;    // Full health
+        }
+
+        // Weapon
+        if (playerEntity->hasComponent<WeaponComponent>()) {
+            auto& weaponComp = playerEntity->getComponent<WeaponComponent>();
+            weaponComp.tag = "pistol";
+            weaponComp.damage = 25;
+            weaponComp.fireRate = 1000;
+            weaponComp.projectileSpeed = 10.0f;
+            weaponComp.projectileRange = 2500;
+            weaponComp.spreadAngle = 0.1f;
+            weaponComp.projectilesPerShot = 1;
+            weaponComp.projectileSize = 32;
+            weaponComp.projectileTexture = "projectile";
+            weaponComp.projectilePierce = 1;
+            weaponComp.shotsPerBurst = 3;
+            weaponComp.burstDelay = 75;
+        }
+
+        // Spells (Find them, potentially by order or need a better way like tag lookup)
+        // This assumes the first SpellComponent added was fire, second was star.
+        // A better approach would involve giving spells unique IDs or iterating and checking tags.
+        int spellCompCount = 0;
+        SpellComponent* fireSpell = nullptr;
+        SpellComponent* starSpell = nullptr;
+        for(auto& comp : playerEntity->getAllComponents()) { // Assumes getAllComponents exists
+            if (SpellComponent* spell = dynamic_cast<SpellComponent*>(comp.get())) {
+                 if (!fireSpell) fireSpell = spell; // Assign first found to fire
+                 else if (!starSpell) starSpell = spell; // Assign second found to star
+            }
+        }
+
+        if (fireSpell) {
+            fireSpell->tag = "spell";
+            fireSpell->damage = 5;
+            fireSpell->cooldown = 200;
+            fireSpell->projectileSpeed = 3.0f;
+            fireSpell->projectilesPerCast = 5;
+            fireSpell->projectileSize = 38;
+            fireSpell->projectileTexture = "fire";
+            fireSpell->duration = 3000;
+            fireSpell->trajectoryMode = SpellTrajectory::SPIRAL;
+            fireSpell->spiralGrowthRate = 8.0f;
+            fireSpell->projectilePierce = 2;
+        } else { std::cerr << "Warning: Could not find first SpellComponent to set defaults." << std::endl; }
+
+        if (starSpell) {
+            starSpell->tag = "star";
+            starSpell->damage = 5;
+            starSpell->cooldown = 5000;
+            starSpell->projectileSpeed = 3.0f;
+            starSpell->projectilesPerCast = 0; // This might be intended (or should be 1?)
+            starSpell->projectileSize = 38;
+            starSpell->projectileTexture = "starproj";
+            starSpell->duration = 3000;
+            starSpell->trajectoryMode = SpellTrajectory::RANDOM_DIRECTION;
+            starSpell->spiralGrowthRate = 8.0f; // Might not be used by random
+            starSpell->projectilePierce = 2;
+         } else { std::cerr << "Warning: Could not find second SpellComponent to set defaults." << std::endl; }
 
 
+        // Set default volumes if load failed
+        musicVolume = MIX_MAX_VOLUME / 2;
+        sfxVolume = MIX_MAX_VOLUME / 2;
+        Mix_VolumeMusic(musicVolume);
+        Mix_Volume(-1, sfxVolume);
+        // --- End Setting Default Stats ---
+
+    } else {
+        // Load successful. Data was loaded into components.
+        std::cout << "Loaded default.state successfully. Settings: MusicVol=" << musicVolume << ", SfxVol=" << sfxVolume << std::endl;
+        // Ensure health isn't somehow invalid after load (e.g. 0 max health)
+        if (playerEntity->hasComponent<HealthComponent>()) {
+             auto& healthComp = playerEntity->getComponent<HealthComponent>();
+             if (healthComp.maxHealth <= 0) healthComp.maxHealth = 1; // Ensure maxHealth > 0
+             if (healthComp.health > healthComp.maxHealth) healthComp.health = healthComp.maxHealth;
+             if (healthComp.health <= 0) healthComp.health = 1; // Ensure health > 0 if max is > 0
+        }
+    }
+    // --- End Handling ---
+
+    // --- Load Map ---
+    delete map;
+    map = new Map(manager, "terrain", 1, 32);
+    map->LoadMap("assets/map.map", MAP_WIDTH, MAP_HEIGHT, 10, spawnPoints);
+
+    isRunning = true;
 }
 
 
-auto& tiles(manager.getGroup(Game::groupMap));
-auto& players(manager.getGroup(Game::groupPlayers));
-auto& colliders(manager.getGroup(Game::groupColliders));
-auto& projectiles(manager.getGroup(Game::groupProjectiles));
-auto& enemies(manager.getGroup(Game::groupEnemies));
-auto& expOrbs(manager.getGroup(Game::groupExpOrbs));
 
-
+// --- Modify Game::handleEvents ---
 void Game::handleEvents() {
     // Event polling happens in main loop first (SDL_PollEvent(&Game::event))
 
@@ -231,7 +300,7 @@ void Game::handleEvents() {
         return; // <<< CRUCIAL: Add this return at the end of the block
     }
 
-    // --- Handle PAUSED state input (Volume controls, etc.) ---
+    // --- Handle PAUSED state input ---
     // This block is ONLY reached if isPaused is true AND isInBuffSelection is false
     if (isPaused) {
         if (Game::event.type == SDL_KEYDOWN) {
@@ -254,7 +323,33 @@ void Game::handleEvents() {
                     std::cout << "DEBUG: SDLK_RIGHT detected while paused." << std::endl;
                     changeSfxVolume(VOLUME_STEP);
                     break;
-                // Allow ESC to go to Menu from pause screen?
+                // --- Save/Load Keys ---
+                case SDLK_F5: // Quick Save
+                    if (saveLoadManager) {
+                        saveLoadManager->saveGameState(); // Use the manager to save
+                    } else {
+                         std::cerr << "Error: Cannot save, SaveLoadManager is null!" << std::endl;
+                    }
+                    break;
+                case SDLK_F9: // Quick Load
+                    if (saveLoadManager) {
+                        // Quick load needs logic to find the latest save file.
+                        // For now, let's load a specific file like 'quicksave.state'
+                        // or just print a message.
+                        std::cout << "Attempting Quick Load (loading quicksave.state)..." << std::endl;
+                        if (saveLoadManager->loadGameState("quicksave.state")) {
+                           // Optional: Add feedback on successful load
+                           std::cout << "Quicksave loaded." << std::endl;
+                           // Ensure game is unpaused after load
+                           if(isPaused) togglePause();
+                        } else {
+                           std::cout << "Failed to load quicksave.state." << std::endl;
+                        }
+                    } else {
+                         std::cerr << "Error: Cannot load, SaveLoadManager is null!" << std::endl;
+                    }
+                    break;
+                // --- End Save/Load Keys ---
                  case SDLK_ESCAPE:
                      // Optional: unpause before switching? togglePause();
                      SceneManager::instance->switchToScene(SceneType::Menu);
@@ -277,6 +372,7 @@ void Game::handleEvents() {
     // Handle any specific single-press gameplay keys here if necessary.
 
 } // End Game::handleEvents
+
 
 void Game::spawnEnemy() {
     // Check if playerEntity exists before using it
@@ -328,28 +424,27 @@ void Game::spawnEnemy() {
     int randomIndex = std::rand() % spawnPoints.size();
     Vector2D spawnPosition = spawnPoints[randomIndex];
 
-    // std::cout << "Spawning " << selectedEnemy.tag << " at: (" 
+    // std::cout << "Spawning " << selectedEnemy.tag << " at: ("
     //           << spawnPosition.x << ", " << spawnPosition.y << ")" << std::endl;
 
     auto& enemy = manager.addEntity();
 
-    // Add the enemy sprite texture
     assets->AddTexture(selectedEnemy.tag, selectedEnemy.sprite);
 
 
     int enemySize = 64;
 
     enemy.addComponent<TransformComponent>(spawnPosition.x, spawnPosition.y, enemySize, enemySize, 2);
-    enemy.addComponent<SpriteComponent>(selectedEnemy.tag, true);
-    enemy.addComponent<ColliderComponent>(selectedEnemy.tag, 64, 64);
+    enemy.addComponent<SpriteComponent>(selectedEnemy.tag, true); // Make enemies animated
+    enemy.addComponent<ColliderComponent>(selectedEnemy.tag, 64, 64); // Adjust collider size if needed
     enemy.addComponent<HealthComponent>(selectedEnemy.health, selectedEnemy.health);
 
     // Pass the member playerEntity's details
     enemy.addComponent<EnemyAIComponent>(
         5000, // Detection range
         selectedEnemy.speed, // Movement speed
-        &playerEntity->getComponent<TransformComponent>().position, // Player position ptr
-        selectedEnemy.damage + (playerManager ? playerManager->getLevel() : 0), // Contact damage
+        &playerEntity->getComponent<ColliderComponent>().position, // Player position ptr
+        selectedEnemy.damage + (playerManager ? playerManager->getLevel() : 0), // Contact damage (scales with player level)
         selectedEnemy.experience, // Experience value
         playerEntity // Player entity ptr
     );
@@ -360,248 +455,200 @@ void Game::spawnEnemy() {
 
 
 void Game::update(){
-    // std::cout << "Game::update called, isPaused = " << isPaused << std::endl;
-    if (!playerEntity) return;
+    if (!isRunning || !playerEntity) return; // Check running state and player
 
-    manager.refresh(); // Refresh entities at the start of update
+    // --- Use member 'manager' ---
+    manager.refresh();
 
     Uint32 currentTime = SDL_GetTicks();
-    if(!isPaused){
+    if(!isPaused && !isInBuffSelection){ // Check buff selection state too
 
+        // --- Get groups using member 'manager' ---
+        auto& colliders = manager.getGroup(Game::groupColliders);
+        auto& projectiles = manager.getGroup(Game::groupProjectiles);
+        auto& enemies = manager.getGroup(Game::groupEnemies);
+        auto& expOrbs = manager.getGroup(Game::groupExpOrbs); // Needed for ExpOrbComponent update
 
-        if (currentTime > lastEnemySpawnTime + 1000) { // Reuse existing timer check for simplicity
-            // Or use SDL_GetTicks() % 3000 == 0 to check every few seconds
-        if (Mix_PlayingMusic()) {
-        std::cout << "DEBUG: Mix_PlayingMusic() returns TRUE." << std::endl;
-        } else {
-        std::cout << "DEBUG: Mix_PlayingMusic() returns FALSE." << std::endl;
+        // Update player pos (needed for camera, potentially other logic)
+        Vector2D playerPosStart; // Store position before manager.update()
+        if(playerEntity->hasComponent<TransformComponent>()) { // Check component exists
+            playerPosStart = playerEntity->getComponent<TransformComponent>().position;
         }
-        // Mix_VolumeMusic(-1) gets the current volume without changing it.
-        std::cout << "DEBUG: Music Volume is " << Mix_VolumeMusic(-1) << std::endl;
-        }
 
-        // Use playerEntity
-        Vector2D playerPosStart = playerEntity->getComponent<TransformComponent>().position;
-        ColliderComponent& playerCollider = playerEntity->getComponent<ColliderComponent>();
-        Vector2D realposition;
-        realposition.x = playerCollider.collider.x;
-        realposition.y = playerCollider.collider.y;
-
+        // --- Use member 'manager' to update ---
         manager.update(); // Update all active entities and components
 
-        // --- Collision Handling ---
-        SDL_Rect playerCol = playerCollider.collider;
+        // Collision Handling needs player Collider & Transform
+        if (!playerEntity->hasComponent<ColliderComponent>() || !playerEntity->hasComponent<TransformComponent>()) {
+             std::cerr << "Error in Game::update: Player missing Collider or Transform for collision checks!" << std::endl;
+             return; // Cannot do collisions without these
+        }
+        ColliderComponent& playerCollider = playerEntity->getComponent<ColliderComponent>();
         TransformComponent& playerTransform = playerEntity->getComponent<TransformComponent>();
+        SDL_Rect playerCol = playerCollider.collider;
+
 
         // Player vs Terrain collision
-        for (auto& c : colliders) {
+        for (auto* c : colliders) { // Iterate over pointers
+             if (!c || !c->isActive() || !c->hasComponent<ColliderComponent>()) continue; // Safety checks
             ColliderComponent& obstacleCollider = c->getComponent<ColliderComponent>();
-            SDL_Rect cCol = obstacleCollider.collider;
-            // Ensure it's terrain and collision occurs
-            if (obstacleCollider.tag == "terrain" && Collision::AABB(playerCol, cCol)) {
-                // --- (Simplified Collision Resolution - replace with your preferred method) ---
-                 float overlapX = std::min(playerCol.x + playerCol.w, cCol.x + cCol.w) - std::max(playerCol.x, cCol.x);
-                 float overlapY = std::min(playerCol.y + playerCol.h, cCol.y + cCol.h) - std::max(playerCol.y, cCol.y);
+            // Check tag AFTER getting component
+            if (obstacleCollider.tag != "terrain") continue;
 
-                 // Simple push-out based on smaller overlap
-                 if (overlapX < overlapY) {
-                     playerTransform.position.x += (playerTransform.position.x > playerPosStart.x ? -overlapX : overlapX);
-                 } else {
-                     playerTransform.position.y += (playerTransform.position.y > playerPosStart.y ? -overlapY : overlapY);
+            SDL_Rect cCol = obstacleCollider.collider;
+            if (Collision::AABB(playerCol, cCol)) {
+                // Resolve collision (push-out logic from before)
+                 float overlapX = 0.0f, overlapY = 0.0f;
+                 Vector2D centerPlayer(playerCol.x + playerCol.w / 2.0f, playerCol.y + playerCol.h / 2.0f);
+                 Vector2D centerObstacle(cCol.x + cCol.w / 2.0f, cCol.y + cCol.h / 2.0f);
+                 overlapX = (playerCol.w / 2.0f + cCol.w / 2.0f) - std::abs(centerPlayer.x - centerObstacle.x);
+                 overlapY = (playerCol.h / 2.0f + cCol.h / 2.0f) - std::abs(centerPlayer.y - centerObstacle.y);
+
+                 if (overlapX > 0 && overlapY > 0) {
+                     if (overlapX < overlapY) {
+                         playerTransform.position.x += (centerPlayer.x < centerObstacle.x ? -overlapX : overlapX);
+                     } else {
+                         playerTransform.position.y += (centerPlayer.y < centerObstacle.y ? -overlapY : overlapY);
+                     }
+                     playerCollider.update(); // Update collider component immediately
+                     playerCol = playerCollider.collider; // Update local SDL_Rect
                  }
-                 playerCollider.update(); // Update collider position after adjustment
-                 playerCol = playerCollider.collider; // Update rect for subsequent checks
-                // --- (End Simplified Collision Resolution) ---
             }
         }
 
         // Projectile vs Enemy collision
-        for (auto& p : projectiles) {
-            // Ensure projectile p and its components are valid before accessing
-            if (!p || !p->isActive() || !p->hasComponent<ColliderComponent>() || !p->hasComponent<ProjectileComponent>() || !p->hasComponent<TransformComponent>()) continue;
+        for (auto* p : projectiles) { // Iterate over pointers
+             if (!p || !p->isActive() || !p->hasComponent<ColliderComponent>() || !p->hasComponent<ProjectileComponent>() || !p->hasComponent<TransformComponent>()) continue;
+             SDL_Rect projectileCollider = p->getComponent<ColliderComponent>().collider;
+             ProjectileComponent& projComp = p->getComponent<ProjectileComponent>();
 
-            // Iterate through enemies to check for collisions
-            for (auto& e : enemies) {
-                 // Ensure enemy e and its components are valid before accessing
-                if (!e || !e->isActive() || !e->hasComponent<ColliderComponent>()) continue;
+             for (auto* e : enemies) { // Iterate over pointers
+                 if (!e || !e->isActive() || !e->hasComponent<ColliderComponent>()) continue;
+                 if (projComp.hasHit(e)) continue; // Check before getting collider
 
-                SDL_Rect enemyCollider = e->getComponent<ColliderComponent>().collider;
-                SDL_Rect projectileCollider = p->getComponent<ColliderComponent>().collider;
+                 SDL_Rect enemyCollider = e->getComponent<ColliderComponent>().collider;
+                 if (Collision::AABB(enemyCollider, projectileCollider)) {
+                     // ... (Damage, Knockback, Hit Tint, Death logic - mostly unchanged) ...
+                     int damage = projComp.getDamage();
+                      if (e->hasComponent<TransformComponent>()) { /* Knockback */
+                          Vector2D knockbackDir = p->getComponent<TransformComponent>().velocity.Normalize();
+                          float knockbackForce = 35.0f;
+                          e->getComponent<TransformComponent>().position.x += knockbackDir.x * knockbackForce;
+                          e->getComponent<TransformComponent>().position.y += knockbackDir.y * knockbackForce;
+                          if(e->hasComponent<ColliderComponent>()) e->getComponent<ColliderComponent>().update();
+                      }
+                      if (e->hasComponent<SpriteComponent>()) { /* Hit Tint */
+                         e->getComponent<SpriteComponent>().isHit = true;
+                         e->getComponent<SpriteComponent>().hitTime = currentTime;
+                      }
+                       if (e->hasComponent<HealthComponent>()) {
+                           e->getComponent<HealthComponent>().takeDamage(damage);
+                           if (e->getComponent<HealthComponent>().getHealth() <= 0) {
+                            // Enemy Death Logic (Exp Orb Spawning)
+                            if (playerManager && e->hasComponent<EnemyAIComponent>() && e->hasComponent<ColliderComponent>()) {
+                                 int expValue = e->getComponent<EnemyAIComponent>().getExpValue();
+                                 Vector2D deathPosition = e->getComponent<ColliderComponent>().position;
+                                 std::string orbTextureId = "exp_orb_1"; // Default
+                                 if (expValue >= 500) orbTextureId = "exp_orb_500"; else if (expValue >= 250) orbTextureId = "exp_orb_250"; else if (expValue >= 100) orbTextureId = "exp_orb_100"; else if (expValue >= 50) orbTextureId = "exp_orb_50"; else if (expValue >= 10) orbTextureId = "exp_orb_10";
 
-                if (Collision::AABB(enemyCollider, projectileCollider)) {
-                    ProjectileComponent& projComp = p->getComponent<ProjectileComponent>();
-                    Entity* enemyEntity = e; // Get pointer to the enemy entity
-
-                    // --- Check if this enemy has ALREADY been hit by this projectile ---
-                    // Note: Assumes ProjectileComponent has hasHit(), recordHit(), shouldDestroy() methods
-                    // You might need to implement these in ProjectileComponent.h/.cpp if not already done.
-                    // Example implementation: hasHit uses a std::set<Entity*>, recordHit adds to it, shouldDestroy compares set size to a pierce count.
-                    if (!projComp.hasHit(enemyEntity)) {
-                        // --- Enemy NOT hit before by this projectile ---
-
-                        // std::cout << "Projectile hit NEW enemy!" << std::endl;
-                        int damage = projComp.getDamage();
-
-                        // --- Apply effects to enemy ---
-
-                        // Apply Knockback
-                        if (e->hasComponent<TransformComponent>()) {
-                            Vector2D knockbackDir = p->getComponent<TransformComponent>().velocity.Normalize();
-                            float knockbackForce = 35.0f;
-                            // Optional: Add knockback vs terrain check here if desired
-                            e->getComponent<TransformComponent>().position.x += knockbackDir.x * knockbackForce;
-                            e->getComponent<TransformComponent>().position.y += knockbackDir.y * knockbackForce;
-                            e->getComponent<ColliderComponent>().update(); // Update collider after knockback
-                        }
-
-                        // Apply Hit Tint
-                        if (e->hasComponent<SpriteComponent>()) {
-                           e->getComponent<SpriteComponent>().isHit = true;
-                           e->getComponent<SpriteComponent>().hitTime = currentTime;
-                        }
-
-                        // Apply Damage
-                        if (e->hasComponent<HealthComponent>()) {
-                            e->getComponent<HealthComponent>().takeDamage(damage);
-                            if (e->getComponent<HealthComponent>().getHealth() <= 0) {
-                                // Enemy died
-                                if (playerManager && e->hasComponent<EnemyAIComponent>()) {
-                                    if (e->hasComponent<EnemyAIComponent>() && e->hasComponent<TransformComponent>()) {
-                                        int expValue = e->getComponent<EnemyAIComponent>().getExpValue();
-                                        Vector2D deathPosition = e->getComponent<ColliderComponent>().position;
-                                
-                                        // --- Determine Orb Texture ID based on EXP Value ---
-                                        std::string orbTextureId = "exp_orb_1"; // Default to the lowest tier
-                                
-                                        if (expValue >= 500) {
-                                            orbTextureId = "exp_orb_500";
-                                        } else if (expValue >= 250) {
-                                            orbTextureId = "exp_orb_250";
-                                        } else if (expValue >= 100) {
-                                            orbTextureId = "exp_orb_100";
-                                        } else if (expValue >= 50) {
-                                            orbTextureId = "exp_orb_50";
-                                        } else if (expValue >= 10) {
-                                            orbTextureId = "exp_orb_10";
-                                        }
-                                        // No need for 'else' for exp_orb_1 as it's the default
-                                        // --- End Texture ID Determination ---
-                                
-                                
-                                        std::cout << "Enemy died! Spawning EXP orb (" << orbTextureId << ") with " << expValue << " EXP at ("
-                                                  << deathPosition.x << ", " << deathPosition.y << ")" << std::endl; // Debug
-                                
-                                        // --- Create the EXP Orb Entity ---
-                                        auto& orb = manager.addEntity();
-                                        orb.addComponent<TransformComponent>(deathPosition.x, deathPosition.y, 32, 32, 1); // Adjust size/scale if needed
-                                        // Add SpriteComponent using the determined texture ID
-                                        std::cout << "DEBUG: Orb Entity: " << &orb << ", EXP: " << expValue << ", Assigning Texture ID: '" << orbTextureId << "'" << std::endl;
-                                        orb.addComponent<SpriteComponent>(orbTextureId); // <--- Use the selected texture ID
-                                        
-                                        orb.addComponent<ExpOrbComponent>(expValue);
-                                        
-                                    }
-                                    playerManager->incrementEnemiesDefeated();
-                                    
-                                }
-                                // Note: Enemy entity is marked for destruction by takeDamage when health <= 0
+                                 auto& orb = manager.addEntity(); // Use member manager
+                                 orb.addComponent<TransformComponent>(deathPosition.x, deathPosition.y, 32, 32, 1);
+                                 orb.addComponent<SpriteComponent>(orbTextureId);
+                                 // --- ADD COLLIDER COMPONENT FOR ORB ---
+                                 orb.addComponent<ColliderComponent>("exp_orb", 16, 16); // Add collider before ExpOrbComponent (adjust size as needed)
+                                 // --- END ADD ---
+                                 orb.addComponent<ExpOrbComponent>(expValue);
+                                 // Orb should be added to groupExpOrbs inside ExpOrbComponent::init now
                             }
-                        }
-                        // --- End Apply Effects ---
+                            if(playerManager) playerManager->incrementEnemiesDefeated();
+                       }
+                       }
+                     projComp.recordHit(e);
+                     if (projComp.shouldDestroy()) {
+                          p->destroy();
+                          break; // Exit inner enemy loop
+                     }
+                 } // End AABB check
+             } // End enemy loop
+             if (!p->isActive()) continue; // Continue projectile loop if destroyed
+        } // End projectile loop
 
-                        // --- Record Hit & Check Pierce ---
-                        projComp.recordHit(enemyEntity); // Record hit on THIS specific enemy
 
-                        if (projComp.shouldDestroy()) { // Check if unique hit count reached pierce limit
-                             p->destroy();
-                             break; // Exit inner enemy loop for this projectile (it's destroyed)
-                        }
-                        // --- End Record Hit & Check Pierce ---
-
-                    } // End if (!projComp.hasHit(enemyEntity))
-
-                } // End if (Collision::AABB...)
-
-            } // End enemy loop (for auto& e : enemies)
-
-            // Important: If the projectile was destroyed inside the enemy loop (by break),
-            // we need to continue to the next projectile without finishing this iteration.
-            if (!p->isActive()) continue;
-
-        } // End projectile loop (for auto& p : projectiles)
-
-        // Enemy Spawning
-        if (currentTime > lastEnemySpawnTime + 1000) { // Spawn interval
-            spawnEnemy();
+        // Enemy Spawning (consider moving timer logic outside update if needed)
+        if (currentTime > lastEnemySpawnTime + 1000) {
+            spawnEnemy(); // Uses member manager
             lastEnemySpawnTime = currentTime;
         }
 
-        // Camera Update (Track playerEntity)
-        camera.x = static_cast<int>(playerEntity->getComponent<TransformComponent>().position.x - (WINDOW_WIDTH / 2.0f));
-        camera.y = static_cast<int>(playerEntity->getComponent<TransformComponent>().position.y - (WINDOW_HEIGHT / 2.0f));
+        // Camera Update (uses playerTransform directly)
+        camera.x = static_cast<int>(playerTransform.position.x - (WINDOW_WIDTH / 2.0f));
+        camera.y = static_cast<int>(playerTransform.position.y - (WINDOW_HEIGHT / 2.0f));
 
         // Clamp Camera
         if (camera.x < 0) camera.x = 0;
         if (camera.y < 0) camera.y = 0;
-        // Use constants for map dimensions if available, otherwise calculate
-        int mapPixelWidth = MAP_WIDTH * TILE_SIZE; // Assuming TILE_SIZE is accessible or defined
+        int mapPixelWidth = MAP_WIDTH * TILE_SIZE;
         int mapPixelHeight = MAP_HEIGHT * TILE_SIZE;
         if (camera.x > mapPixelWidth - camera.w) camera.x = mapPixelWidth - camera.w;
         if (camera.y > mapPixelHeight - camera.h) camera.y = mapPixelHeight - camera.h;
 
     } else {
-        // Game is paused - handle pause logic if any (e.g., update pause menu animations)
-
+        // Game is paused
     }
-}
+} // End Game::update
+
 
 
 
 // Updated clean method (called by destructor)
+// --- Modify Game::clean ---
+
 void Game::clean(){
     std::cout << "Game::clean() called." << std::endl;
 
-    // Mark the player entity for destruction
+    // Destroy entities via manager BEFORE deleting other resources they might use
+    // Mark player first if it exists
     if (playerEntity) {
-        playerEntity->destroy(); // Manager will remove it on next refresh
-        playerEntity = nullptr; // Reset pointer
-        std::cout << "Player entity marked for destruction." << std::endl;
+        playerEntity->destroy();
+        playerEntity = nullptr;
     }
-    for(auto& e : enemies) {
-        e->destroy();
-    }
-    for(auto& p : projectiles) {
-        p->destroy();
-    }
-     if (assets) {
+    // Mark all other entities for destruction (optional, refresh should handle)
+    // for(auto& entityVec : manager.getAllEntities()) { // Assuming Manager has such a method
+    //    for(auto& entity : entityVec) { if(entity) entity->destroy(); }
+    // }
+    manager.refresh(); // Process destruction flags and delete entities
 
-         std::cout << "AssetManager cleanup skipped (assuming static)." << std::endl;
-     }
+    // Clean up dynamically allocated members
      if (map) {
          delete map;
          map = nullptr;
-         std::cout << "Map cleaned." << std::endl;
      }
      if (ui) {
          delete ui;
          ui = nullptr;
-         std::cout << "UIManager cleaned." << std::endl;
      }
      if (playerManager) {
          delete playerManager;
          playerManager = nullptr;
-         std::cout << "Player manager cleaned." << std::endl;
      }
-
-     // Consider clearing or resetting the manager if entities shouldn't persist
-     // manager.clearAllEntities(); // Example if such a method exists
+     // Delete SaveLoadManager
+     if (saveLoadManager) {
+         delete saveLoadManager;
+         saveLoadManager = nullptr;
+     }
+      // Delete AssetManager (now a member)
+      if (assets) {
+          delete assets;
+          assets = nullptr;
+      }
 
     // Window, Renderer, SDL subsystems are cleaned in main.cpp
     std::cout<< "Game instance resources cleaned."<< std::endl;
 }
 
 
-void Game::rezero(){
+
+void Game::rezero(){ // This might be obsolete or need rethinking with load game
     if (playerEntity) { // Check if player exists
         playerEntity->getComponent<TransformComponent>().position.x = 400;
         playerEntity->getComponent<TransformComponent>().position.y = 320;
@@ -630,12 +677,16 @@ void Game::renderHealthBar(Entity& entity, Vector2D position) {
     }
 
     const HealthComponent& health = entity.getComponent<HealthComponent>();
-    if (health.getHealth() <= 0) return; // Don't render for dead entities
+    if (health.getHealth() <= 0 || health.getHealth() == health.getMaxHealth()) return; // Don't render for dead or full health entities
+
 
     // Calculate health bar dimensions and position
     int barWidth = 40;
     int barHeight = 5;
-    // Use entity's collider position for rendering bar relative to it
+    // Position relative to entity's transform (adjust offsets as needed)
+    if (!entity.hasComponent<TransformComponent>()) return; // Need transform for position
+    
+
     int xPos = static_cast<int>(position.x) - camera.x + (entity.getComponent<ColliderComponent>().collider.w / 2) - (barWidth / 2); // Centered above collider
     int yPos = static_cast<int>(position.y) - camera.y - 15; // Position above the entity
 
@@ -661,43 +712,65 @@ void Game::renderHealthBar(Entity& entity, Vector2D position) {
     SDL_Rect healthRect = {xPos, yPos, currentBarWidth, barHeight};
     SDL_RenderFillRect(renderer, &healthRect);
 }
+
+
 void Game::render(){
     if (!Game::renderer) return;
     SDL_RenderClear(Game::renderer);
 
-    // ... (get entity groups) ...
+    // --- Get groups using member 'manager' ---
+    auto& tiles = manager.getGroup(Game::groupMap);
+    // auto& players = manager.getGroup(Game::groupPlayers); // Only one player, use playerEntity
+    auto& projectiles = manager.getGroup(Game::groupProjectiles);
+    auto& enemies = manager.getGroup(Game::groupEnemies);
+    auto& expOrbs = manager.getGroup(Game::groupExpOrbs);
+    // auto& colliders = manager.getGroup(Game::groupColliders); // Only needed for debug drawing
 
-    // Render game world only if not in buff selection AND not paused (or optionally render world dimly if paused)
-    if (!isInBuffSelection && !isPaused) { // Render normally if not paused/in buff select
-        for(auto& t : tiles) if(t->isActive()) t->draw();
-        // for(auto& c : colliders) if(c->isActive()) c->draw(); // Draw terrain colliders if needed for debug
-        for(auto& p : projectiles) if(p->isActive()) p->draw();
-        for(auto& e : enemies) if(e->isActive()) {e->draw();}
-        if(playerEntity && playerEntity->isActive()) playerEntity->draw();
-        for(auto& o : expOrbs) if(o->isActive()) o->draw();
-        for(auto& e : enemies) {
-            if (e->isActive() && e->hasComponent<ColliderComponent>() && e->hasComponent<HealthComponent>()) {
-                Vector2D enemyPos = e->getComponent<ColliderComponent>().position;
-                renderHealthBar(*e, enemyPos);
-            }
+    // Render game world only if not in buff selection AND not paused
+    if (!isInBuffSelection && !isPaused) {
+        for(auto* t : tiles) if(t && t->isActive()) t->draw();
+        for(auto* p : projectiles) if(p && p->isActive()) p->draw();
+        for(auto* e : enemies) if(e && e->isActive()) e->draw(); // Draw enemy sprites
+        if(playerEntity && playerEntity->isActive()) playerEntity->draw(); // Draw player sprite
+        for(auto* o : expOrbs) if(o && o->isActive()) o->draw();
+
+        // Draw health bars AFTER sprites
+        for(auto* e : enemies) {
+            if (e && e->isActive() && e->hasComponent<ColliderComponent>() && e->hasComponent<HealthComponent>()) {
+                 // Use ColliderComponent's position member which is updated in its update()
+                 Vector2D enemyPos = e->getComponent<ColliderComponent>().position;
+                 renderHealthBar(*e, enemyPos);
+             }
         }
+        // Draw UI last
         if (ui && playerManager) {
             ui->renderUI(playerManager);
         }
     }
     // --- PAUSE MENU / BUFF SELECTION RENDERING ---
     else {
-        // Optionally render the game world dimmed underneath menus
-        // SDL_SetTextureColorMod(gameWorldTexture, 100, 100, 100); // Example dimming
-        // SDL_RenderCopy(renderer, gameWorldTexture, ...);
-        // SDL_SetTextureColorMod(gameWorldTexture, 255, 255, 255); // Reset tint
+         // Render world dimly underneath
+         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND); // Enable blending for dimming overlay
+         for(auto* t : tiles) if(t && t->isActive()) t->draw();
+         for(auto* p : projectiles) if(p && p->isActive()) p->draw();
+         for(auto* e : enemies) if(e && e->isActive()) e->draw();
+         if(playerEntity && playerEntity->isActive()) playerEntity->draw();
+         for(auto* o : expOrbs) if(o && o->isActive()) o->draw();
+         for(auto* e : enemies) {
+             if (e && e->isActive() && e->hasComponent<ColliderComponent>() && e->hasComponent<HealthComponent>()) {
+                  Vector2D enemyPos = e->getComponent<ColliderComponent>().position;
+                  renderHealthBar(*e, enemyPos);
+              }
+         }
+         if (ui && playerManager) { // Render UI underneath overlay too
+             ui->renderUI(playerManager);
+         }
 
-         // Draw semi-transparent overlay regardless of buff selection or simple pause
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150); // Semi-transparent black
+         // Draw semi-transparent overlay
+         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150); // Semi-transparent black
          SDL_Rect fullscreen = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
          SDL_RenderFillRect(Game::renderer, &fullscreen);
-         SDL_SetRenderDrawBlendMode(Game::renderer, SDL_BLENDMODE_NONE);
+         SDL_SetRenderDrawBlendMode(Game::renderer, SDL_BLENDMODE_NONE); // Disable blending
 
 
         // Render Buff Selection UI if active (drawn ON TOP of overlay)
@@ -705,44 +778,33 @@ void Game::render(){
             ui->renderBuffSelectionUI(currentBuffOptions);
         }
         // Render General Pause Overlay (if paused BUT not in buff selection)
-        else if (isPaused && ui) { // This 'else if' ensures it doesn't draw over buff selection
-            // Draw "PAUSED" text
-            SDL_Color white = {255, 255, 255, 255};
-            TTF_Font* fontToUse = ui->getLargeFont() ? ui->getLargeFont() : ui->getFont();
-            if (fontToUse) {
-                 int textW, textH;
-                 // Use renderTextToTexture to check size, then drawText
-                 SDL_Texture* tempTex = ui->renderTextToTexture("PAUSED", white, fontToUse, textW, textH);
-                 if(tempTex) {
-                     ui->drawText("PAUSED", WINDOW_WIDTH / 2 - textW / 2, WINDOW_HEIGHT / 3 - textH / 2, white, fontToUse); // Position higher
-                     SDL_DestroyTexture(tempTex);
-                 } else {
-                     std::cerr << "Failed to render PAUSED text texture." << std::endl;
-                 }
-
-                 // --- DRAW VOLUME CONTROLS ---
-                 int volY = WINDOW_HEIGHT / 2; // Start position for volume text
-                 int volX = WINDOW_WIDTH / 2 - 150; // Center alignment helper
-
-                 // Music Volume Display
-                 std::stringstream ssMusic;
-                 ssMusic << "Music Volume: " << static_cast<int>(round(musicVolume * 100.0 / MIX_MAX_VOLUME)) << "% (Up/Down)";
-                 ui->drawText(ssMusic.str(), volX, volY, white, ui->getFont()); // Use smaller font
-
-                 // SFX Volume Display
-                 volY += 30; // Move down for next line
-                 std::stringstream ssSfx;
-                 ssSfx << "SFX Volume:   " << static_cast<int>(round(sfxVolume * 100.0 / MIX_MAX_VOLUME)) << "% (Left/Right)";
-                 ui->drawText(ssSfx.str(), volX, volY, white, ui->getFont()); // Use smaller font
-
-                 // Add instructions for resuming
-                 volY += 60;
-                 ui->drawText("Press 'E' to Resume", volX + 50, volY, white, ui->getFont());
-
-            }
+        else if (isPaused && ui) {
+             // ... (Draw "PAUSED", Volume Controls, Save/Load text - unchanged) ...
+             SDL_Color white = {255, 255, 255, 255};
+             TTF_Font* fontToUse = ui->getLargeFont() ? ui->getLargeFont() : ui->getFont();
+             if (fontToUse) {
+                  int textW, textH;
+                  SDL_Texture* tempTex = ui->renderTextToTexture("PAUSED", white, fontToUse, textW, textH);
+                  if(tempTex) {
+                      ui->drawText("PAUSED", WINDOW_WIDTH / 2 - textW / 2, WINDOW_HEIGHT / 3 - textH / 2, white, fontToUse);
+                      SDL_DestroyTexture(tempTex);
+                  }
+                  int volY = WINDOW_HEIGHT / 2;
+                  int volX = WINDOW_WIDTH / 2 - 150;
+                  std::stringstream ssMusic;
+                  ssMusic << "Music Volume: " << static_cast<int>(round(musicVolume * 100.0 / MIX_MAX_VOLUME)) << "% (Up/Down)";
+                  ui->drawText(ssMusic.str(), volX, volY, white, ui->getFont());
+                  volY += 30;
+                  std::stringstream ssSfx;
+                  ssSfx << "SFX Volume:   " << static_cast<int>(round(sfxVolume * 100.0 / MIX_MAX_VOLUME)) << "% (Left/Right)";
+                  ui->drawText(ssSfx.str(), volX, volY, white, ui->getFont());
+                  volY += 40;
+                  ui->drawText("F5: Save Game | F9: Load Quicksave", volX, volY, white, ui->getFont()); // Show Save/Load Keys
+                   volY += 40;
+                   ui->drawText("Press 'E' to Resume", volX + 50, volY, white, ui->getFont()); // Adjusted X offset
+             }
         }
     }
-
 
     SDL_RenderPresent(Game::renderer);
 } // End render
@@ -821,7 +883,7 @@ void Game::enterBuffSelection() {
         isInBuffSelection = true;
         isPaused = true; // Use instance member pause flag
         generateBuffOptions(); // Call instance method
-     
+
     }
  }
 void Game::exitBuffSelection() {
@@ -830,7 +892,7 @@ void Game::exitBuffSelection() {
         isInBuffSelection = false;
         isPaused = false; // Use instance member pause flag
         currentBuffOptions.clear(); // Use instance member
-        
+
      }
 }
 
@@ -952,7 +1014,7 @@ void Game::togglePause() {
             std::cout << "Music Resumed." << std::endl;
         }
     }
-    
+
 }
 
 void Game::changeMusicVolume(int delta) {

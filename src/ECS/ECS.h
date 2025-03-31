@@ -119,29 +119,96 @@ class Manager {
         std::vector<std::unique_ptr<Entity>> entities;
         std::array<std::vector<Entity*>, maxGroups> groupedEntities;
     public:
-    
+
         void update() {
-            for (auto& e : entities) e->update();
+            for (auto& e : entities) {
+                // Check if unique_ptr itself is valid before calling update
+                if (e) {
+                    e->update();
+                }
+            }
         }
         void draw() {
-            for (auto& e : entities) e->draw();
+             for (auto& e : entities) {
+                 // Check if unique_ptr itself is valid before calling draw
+                 if (e) {
+                     e->draw();
+                 }
+             }
         }
-        void refresh() {
-            for (auto i(0u); i < maxGroups; i++) {
-                auto& v(groupedEntities[i]);
 
-                v.erase(std::remove_if(std::begin(v), std::end(v), [i](Entity* mEntity) {
-                    return !mEntity->isActive() || !mEntity->hasGroup(i);
-                }), std::end(v));
+        void refresh() {
+            // --- Refresh main entities list FIRST ---
+            // This removes inactive entities AND deletes the Entity objects via unique_ptr destructor.
+            entities.erase(
+                std::remove_if(std::begin(entities), std::end(entities),
+                    [](const std::unique_ptr<Entity> &mEntity) {
+                        // Condition checks if unique_ptr is null OR entity is inactive
+                        return !mEntity || !mEntity->isActive();
+                    }),
+                std::end(entities)
+            );
+
+            // --- THEN, Refresh grouped entities (using raw pointers) ---
+            // Now iterate through groups and remove pointers to entities that are
+            // no longer active OR no longer belong to the group.
+            // Since the owning unique_ptrs might have been deleted above,
+            // checking isActive() here on a raw pointer IS DANGEROUS if the entity was deleted.
+            // The check should primarily be based on whether the entity *still exists*
+            // in the main `entities` list (which is complex) or better, rely on
+            // components adding/removing themselves from groups correctly when needed.
+            // A simpler, often sufficient approach if group management is reliable:
+            // Only remove pointers if the entity is no longer in that specific group.
+            // Entities that became inactive were already deleted above. We just need
+            // to remove the now-dangling pointers or pointers to entities moved out of the group.
+            // SAFER APPROACH: Rebuild groupedEntities from scratch based on active entities.
+
+            // --- SAFEST REFRESH LOGIC: Rebuild groupedEntities ---
+            for (auto& v : groupedEntities) {
+                v.clear(); // Clear all existing (potentially dangling) raw pointers
             }
-            entities.erase(std::remove_if(std::begin(entities), std::end(entities), [](const std::unique_ptr<Entity> &mEntity) {
-                return !mEntity->isActive();
-            }), std::end(entities));
-        }
+            // Repopulate groups based on currently active entities in the main list
+            for (const auto& entityPtr : entities) {
+                 if (entityPtr && entityPtr->isActive()) { // Check unique_ptr and entity status
+                     for (Group group = 0; group < maxGroups; ++group) {
+                         if (entityPtr->hasGroup(group)) {
+                             groupedEntities[group].push_back(entityPtr.get()); // Add raw pointer back
+                         }
+                     }
+                 }
+            }
+            // --- End SAFEST REFRESH LOGIC ---
+
+
+            /* --- ORIGINAL groupedEntities Refresh Logic (Potentially Unsafe) ---
+               This logic is prone to crashes if an entity was deleted in the
+               entities.erase() step above, because mEntity would be a dangling pointer.
+
+            for (auto i(0u); i < maxGroups; i++) {
+                auto& v(groupedEntities[i]); // v is std::vector<Entity*>&
+
+                v.erase(
+                    std::remove_if(std::begin(v), std::end(v), [i](Entity* mEntity) {
+                        // DANGER: mEntity might be dangling pointer here!
+                        // Checking isActive() or hasGroup() can crash.
+                         return !mEntity || !mEntity->isActive() || !mEntity->hasGroup(i);
+                    }),
+                    std::end(v)
+                );
+            }
+            */
+
+        } // End refresh()
+
         void AddToGroup(Entity* mEntity, Group mGroup) {
-            groupedEntities[mGroup].emplace_back(mEntity);
+            // Check if entity is already in the group vector to prevent duplicates
+             auto& groupVec = groupedEntities[mGroup];
+             if (std::find(groupVec.begin(), groupVec.end(), mEntity) == groupVec.end()) {
+                 groupVec.emplace_back(mEntity);
+             }
         }
         std::vector<Entity*>& getGroup(Group mGroup) {
+            // Bounds check might be useful here if maxGroups is dynamic
             return groupedEntities[mGroup];
         }
 
@@ -151,5 +218,4 @@ class Manager {
             entities.emplace_back(std::move(uPtr));
             return *e;
         }
-};
-
+}; // End Manager class

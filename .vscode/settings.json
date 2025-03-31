@@ -82,7 +82,10 @@
         "bitset": "cpp",
         "fstream": "cpp",
         "set": "cpp",
-        "iomanip": "cpp"
+        "iomanip": "cpp",
+        "chrono": "cpp",
+        "codecvt": "cpp",
+        "ratio": "cpp"
     },
 }
     

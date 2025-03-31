@@ -3,11 +3,16 @@
 #include <SDL.h>
 #include <iostream>
 #include <vector>
-// #include <functional> // For std::function
+// #include <fstream>   // Removed - Moved to SaveLoadManager
+// #include <string>    // Removed - Moved to SaveLoadManager
+// #include <chrono>    // Removed - Moved to SaveLoadManager
+// #include <iomanip>   // Removed - Moved to SaveLoadManager
 #include "Vector2D.h"
 #include "ECS/ECS.h"
 #include "UI.h"
 #include <SDL_mixer.h>
+#include "SaveLoadManager.h" // Include the new header
+
 // Forward declarations
 class AssetManager;
 class Entity;
@@ -17,6 +22,9 @@ class UIManager;
 class Player;
 class SpellComponent;
 class WeaponComponent;
+// class SaveLoadManager; // No longer needed if included above
+
+
 
 // Buff Type Enum
 enum class BuffType {
@@ -57,66 +65,83 @@ struct BuffInfo {
 };
 
 class Game {
-public:
-    static Game* instance;
-    static SDL_Renderer* renderer;
-    static SDL_Event event;
-    static SDL_Rect camera;
-    static AssetManager* assets;
-    static bool isRunning;
-    static int mouseX;
-    static int mouseY;
-
-    Game();
-    ~Game();
-    void init(const char* title, int xpos, int ypos, int width, int height, bool fullscreen);
-    void handleEvents();
-    void update();
-    void render();
-    void clean();
-    bool running() { return isRunning; }
-    void setRunning(bool running) { isRunning = running; }
-    bool getPaused() const { return isPaused; }
-    void togglePause() ;
-    void rezero();
-    Entity& getPlayer();
-    Player* getPlayerManager() { return playerManager; }
-    void spawnEnemy();
-    void renderHealthBar(Entity& entity, Vector2D position);
-    void enterBuffSelection();
-    void exitBuffSelection();
-    void applySelectedBuff(int index);
-    int musicVolume = MIX_MAX_VOLUME / 2; // Start at 50%
-    int sfxVolume = MIX_MAX_VOLUME / 2;   // Start at 50%
-    const int VOLUME_STEP = 10; // Adjust volume by 10%
-    int getMusicVolume() const { return musicVolume; } // Getter for UI
-    int getSfxVolume() const { return sfxVolume; }   // Getter for UI
-    enum groupLabels : std::size_t {
-        groupMap, groupPlayers, groupColliders, groupProjectiles, groupEnemies, groupExpOrbs 
-    };
-
-private:
-   
-    void changeMusicVolume(int delta);
-    void changeSfxVolume(int delta);
+    public:
+        // Static members
+        static Game* instance;
+        static SDL_Renderer* renderer;
+        static SDL_Event event;
+        static SDL_Rect camera;
+        static bool isRunning;
+        static int mouseX;
+        static int mouseY;
     
-    Entity* playerEntity = nullptr;
-    Player* playerManager = nullptr;
-    UIManager* ui = nullptr;
-    Map* map = nullptr;
-    bool isPaused = false;
-    Uint32 lastEnemySpawnTime = 0;
-    Uint32 lastShotTime = 0;
-    bool isInBuffSelection = false;
-    std::vector<BuffInfo> currentBuffOptions;
-    void generateBuffOptions();
-
-    const int BUFF_DAMAGE_AMOUNT = 5;
-    const int BUFF_COOLDOWN_AMOUNT = 50;
-    const float BUFF_PROJ_SPEED_AMOUNT = 0.5f;
-    const int BUFF_PROJ_COUNT_AMOUNT = 1;
-    const int BUFF_PROJ_SIZE_AMOUNT = 2;
-    const int BUFF_PIERCE_AMOUNT = 1;
-    const int BUFF_FIRE_RATE_AMOUNT = 50;
-    const int BUFF_BURST_COUNT_AMOUNT = 1;
-};
+        // Public Members (Declare ONCE)
+        Manager manager;                // <<< KEEP this declaration (Ensure only one exists)
+        AssetManager* assets = nullptr; // <<< KEEP this declaration (Ensure only one exists)
+        Player* playerManager = nullptr;
+        Entity* playerEntity = nullptr;
+        int musicVolume = MIX_MAX_VOLUME / 2;
+        int sfxVolume = MIX_MAX_VOLUME / 2;
+        SaveLoadManager* saveLoadManager = nullptr;
+        std::vector<Vector2D> spawnPoints;
+        // --- REMOVE DUPLICATE DECLARATIONS ---
+        // Remove lines like these if they exist elsewhere in the class definition:
+        // AssetManager* assets = nullptr; // REMOVE if duplicate
+        // Manager manager;             // REMOVE if duplicate
+        // --- END REMOVAL ---
+    
+    
+        Game();
+        ~Game();
+        void init(const char* title, int xpos, int ypos, int width, int height, bool fullscreen);
+        void handleEvents();
+        void update();
+        void render();
+        void clean();
+        bool running() { return isRunning; }
+        void setRunning(bool running) { isRunning = running; }
+        bool getPaused() const { return isPaused; }
+        void togglePause() ;
+        void rezero();
+        Entity& getPlayer();
+        Player* getPlayerManager() { return playerManager; }
+        void spawnEnemy();
+        void renderHealthBar(Entity& entity, Vector2D position);
+        void enterBuffSelection();
+        void exitBuffSelection();
+        void applySelectedBuff(int index);
+        
+        const int VOLUME_STEP = 10;
+        int getMusicVolume() const { return musicVolume; }
+        int getSfxVolume() const { return sfxVolume; }
+    
+        enum groupLabels : std::size_t {
+            groupMap, groupPlayers, groupColliders, groupProjectiles, groupEnemies, groupExpOrbs
+        };
+    
+    private:
+        // Private methods
+        void changeMusicVolume(int delta);
+        void changeSfxVolume(int delta);
+        void generateBuffOptions();
+    
+        // Private members
+        UIManager* ui = nullptr;
+        Map* map = nullptr;
+        bool isPaused = false;
+        Uint32 lastEnemySpawnTime = 0;
+        Uint32 lastShotTime = 0;
+        bool isInBuffSelection = false;
+        std::vector<BuffInfo> currentBuffOptions;
+    
+        // Buff constants (can stay private or move to constants.h)
+        // const int BUFF_DAMAGE_AMOUNT = 5;
+        const int BUFF_DAMAGE_AMOUNT = 5;
+        const int BUFF_COOLDOWN_AMOUNT = 50;
+        const float BUFF_PROJ_SPEED_AMOUNT = 0.5f;
+        const int BUFF_PROJ_COUNT_AMOUNT = 1;
+        const int BUFF_PROJ_SIZE_AMOUNT = 2;
+        const int BUFF_PIERCE_AMOUNT = 1;
+        const int BUFF_FIRE_RATE_AMOUNT = 50;
+        const int BUFF_BURST_COUNT_AMOUNT = 1;
+    };

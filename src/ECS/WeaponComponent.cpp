@@ -1,91 +1,89 @@
-#include "Components.h"
+#include "Components.h" // Should include WeaponComponent.h
 #include "../AssetManager.h"
+#include "../game.h" // Include game.h for Game::instance and Game::camera/mouseX/mouseY
+#include <iostream> // For logging
+#include <cmath>    // For std::cos, std::sin, acos
 
 void WeaponComponent::init() {
-    // Get component pointers (Requires TransformComponent.h/ColliderComponent.h included via Components.h)
-    if (entity->hasComponent<TransformComponent>()) {
-        transform = &entity->getComponent<TransformComponent>();
-    } else { std::cerr << "WeaponComponent missing TransformComponent!" << std::endl; }
+    initialized = false; // Reset flag
+    if (!entity) { std::cerr << "Error in WeaponComponent::init: Entity is null!" << std::endl; return; }
 
-    if (entity->hasComponent<ColliderComponent>()) {
-        collider = &entity->getComponent<ColliderComponent>();
-    } else { std::cerr << "WeaponComponent missing ColliderComponent!" << std::endl; }
+    // Get component pointers
+    if (!entity->hasComponent<TransformComponent>()) { std::cerr << "Error in WeaponComponent::init: Missing TransformComponent!" << std::endl; return; }
+    transform = &entity->getComponent<TransformComponent>();
+
+    if (!entity->hasComponent<ColliderComponent>()) { std::cerr << "Error in WeaponComponent::init: Missing ColliderComponent!" << std::endl; return; }
+    collider = &entity->getComponent<ColliderComponent>();
+
+     // Get SoundComponent (optional)
+     if (entity->hasComponent<SoundComponent>()) {
+         sound = &entity->getComponent<SoundComponent>();
+     } else {
+         sound = nullptr;
+     }
+
+     // --- Null Check after getting pointers ---
+     if (!transform) { std::cerr << "Error in WeaponComponent::init: Failed to get TransformComponent!" << std::endl; return; }
+     if (!collider) { std::cerr << "Error in WeaponComponent::init: Failed to get ColliderComponent!" << std::endl; return; }
+     // Sound is optional
 
     lastShotTime = SDL_GetTicks(); // Initialize timer correctly
     burstShotsRemaining = 0; // Ensure starting state
+
+    initialized = true; // <<< SET Flag on success
 }
 
-// --- Rewritten Update Logic for Burst Fire ---
 void WeaponComponent::update() {
+    if (!initialized) return; // <<< CHECK Flag
+    // Keep internal checks
+     if (!transform || !collider) return;
+
     Uint32 currentTime = SDL_GetTicks();
 
-    // 1. Check if currently in a burst sequence
+    // Burst fire logic
     if (burstShotsRemaining > 0) {
-        // Check if it's time for the next shot in the burst
         if (currentTime >= nextBurstShotTime) {
-            if (transform && collider) { // Ensure components are valid before shooting
-                 shoot(); // Fire one volley (projectilesPerShot simultaneous projectiles)
-                 burstShotsRemaining--; // Decrement remaining shots in burst
-                 // Set time for the *next* shot in the burst
+            if (transform && collider) { // Check components before shooting
+                 shoot();
+                 burstShotsRemaining--;
                  nextBurstShotTime = currentTime + burstDelay;
-            } else {
-                // Missing components, cancel burst
-                 burstShotsRemaining = 0;
-            }
+            } else { burstShotsRemaining = 0; } // Cancel burst if components invalid
         }
     }
-    // 2. Else, check if ready to start a NEW burst (main cooldown)
-    else if (currentTime > lastShotTime + fireRate) {
-        // Start a new burst
+    else if (currentTime > lastShotTime + fireRate) { // Check main cooldown
         burstShotsRemaining = shotsPerBurst;
-        // Schedule the first shot immediately (or add burstDelay if you want a delay before the first shot too)
-        nextBurstShotTime = currentTime;
-        // Record the time this burst sequence started (for the main cooldown)
-        lastShotTime = currentTime;
+        nextBurstShotTime = currentTime; // First shot immediately
+        lastShotTime = currentTime; // Reset main cooldown timer
 
-        // We trigger the first shot immediately by letting the logic loop back to step 1
-        // OR call shoot() directly here if preferred, adjusting burstShotsRemaining and nextBurstShotTime accordingly.
-        // Let's trigger it immediately for simplicity here:
-        if(burstShotsRemaining > 0 && transform && collider) {
+        if(burstShotsRemaining > 0 && transform && collider) { // Check components before shooting
             shoot();
             burstShotsRemaining--;
-            nextBurstShotTime = currentTime + burstDelay; // Schedule the *next* one
+            nextBurstShotTime = currentTime + burstDelay;
         }
     }
-
-    // Update mouse position regardless of firing state (for aiming)
-    int mouseX, mouseY;
-    SDL_GetMouseState(&mouseX, &mouseY);
-    Game::mouseX = mouseX + Game::camera.x;
-    Game::mouseY = mouseY + Game::camera.y;
+    // Mouse position update is handled globally in Game::handleEvents
 }
 
-
-// --- shoot() method remains the same ---
-// It fires one volley of 'projectilesPerShot' projectiles with spread
 void WeaponComponent::shoot() {
-    // Check required components again before dereferencing
-    if (!transform || !collider) {
-        // std::cerr << "WeaponComponent::shoot() called without valid transform or collider!" << std::endl;
-        return;
+    if (!initialized) return; // <<< CHECK Flag
+    // Keep internal checks
+    if (!transform || !collider) return;
+
+    if (sound) {
+        sound->playSoundEffect("shoot");
     }
-    if (entity->hasComponent<SoundComponent>()) {
-        // Call playSoundEffect using the internal name "shoot"
-        entity->getComponent<SoundComponent>().playSoundEffect("shoot");
-    }
+
     Vector2D projectilePosition;
-    projectilePosition.x = static_cast<float>(collider->collider.x) + collider->collider.w / 2.0f; // Center start pos
+    projectilePosition.x = static_cast<float>(collider->collider.x) + collider->collider.w / 2.0f;
     projectilePosition.y = static_cast<float>(collider->collider.y) + collider->collider.h / 2.0f;
 
     Vector2D targetPosition(static_cast<float>(Game::mouseX), static_cast<float>(Game::mouseY));
     Vector2D direction = targetPosition - projectilePosition;
 
-    // Prevent division by zero if direction is zero vector
-    if (direction.x == 0.0f && direction.y == 0.0f) {
-        direction.y = -1.0f; // Default direction (e.g., straight up)
-    }
+    if (direction.x == 0.0f && direction.y == 0.0f) { direction.y = -1.0f; }
+    else { direction = direction.Normalize(); }
 
-    Vector2D baseVelocity = direction.Normalize() * projectileSpeed;
+    Vector2D baseVelocity = direction * projectileSpeed;
 
     if (projectilesPerShot <= 1) {
         createProjectile(projectilePosition, baseVelocity);
@@ -109,7 +107,11 @@ void WeaponComponent::shoot() {
     }
 }
 
-// --- createProjectile() method remains the same ---
 void WeaponComponent::createProjectile(Vector2D position, Vector2D velocity) {
-    Game::assets->CreateProjectile(position, velocity, projectileRange, damage, projectileSize, projectileTexture, projectilePierce);
+    // if (!initialized) return; // CreateProjectile is internal helper, shoot checks initialized
+     if (Game::instance && Game::instance->assets) {
+         Game::instance->assets->CreateProjectile(position, velocity, projectileRange, damage, projectileSize, projectileTexture, projectilePierce);
+     } else {
+          std::cerr << "Error in WeaponComponent::createProjectile: Game instance or assets pointer is null!" << std::endl;
+     }
 }
