@@ -7,8 +7,6 @@
 enum class SceneType {
     Menu,
     Game,
-    Win,
-    Lose
 };
 
 class SceneManager {

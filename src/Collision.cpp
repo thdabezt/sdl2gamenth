@@ -1,6 +1,6 @@
 #pragma once
 #include "Collision.h"
-#include "ECS/ColliderComponent.h"
+#include "ECS/Components.h"
 bool Collision::AABB(const SDL_Rect& recA, const SDL_Rect& recB){
     if(
         recA.x + recA.w >= recB.x &&

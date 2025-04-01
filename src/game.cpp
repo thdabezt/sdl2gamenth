@@ -18,6 +18,7 @@
 #include "SaveLoadManager.h" // Include the manager
 
 
+
 // Define the static instance
 Game* Game::instance = nullptr;
 // Map *map;
@@ -27,7 +28,8 @@ SDL_Renderer *Game::renderer = nullptr;
 int Game::mouseX = 0;
 int Game::mouseY = 0;
 // Manager manager; // Note: This manager is global/static relative to this file. Consider ownership.
-
+int Game::musicVolume = MIX_MAX_VOLUME / 2; // Default value
+int Game::sfxVolume = MIX_MAX_VOLUME / 2;   // Default value
 SDL_Rect Game::camera = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
 
 // Note: AssetManager is static. Be mindful of its lifecycle if resetting games.
@@ -86,7 +88,8 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
          if(assets) { delete assets; assets = nullptr; }
          return;
     }
-
+    currentState = GameState::Playing; // Start in playing state
+    std::cout << "Game state initialized to Playing." << std::endl;
     Mix_VolumeMusic(musicVolume); Mix_Volume(-1, sfxVolume);
     manager.refresh();
 
@@ -105,7 +108,17 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
      assets->AddSoundEffect("fire_spell_sound", "assets/sound/fire_cast.wav"); // Should work if file exists now
      assets->AddSoundEffect("star_spell_sound", "assets/sound/star_cast.wav"); // Should work if file exists now
 
-
+     assets->AddTexture("pausebox", "assets/menu/pausebox.png");
+     assets->AddTexture("buttonbox", "assets/menu/box.png"); // Reuse box.png
+     assets->AddTexture("soundon", "assets/menu/soundon.png");
+     assets->AddTexture("soundoff", "assets/menu/soundoff.png");
+     assets->AddTexture("slidebar", "assets/menu/slidebar.png");
+     assets->AddTexture("slidebutton", "assets/menu/slidebutton.png");
+     assets->AddTexture("gameover", "assets/menu/gameover.png"); // Load game over image
+     assets->AddSoundEffect("gameover_sfx", "assets/sound/gameover.wav");
+      // --- ADDED: Load Menu SFX ---
+    assets->AddSoundEffect("game_start", "assets/sound/start.wav");     // Assume path is correct
+    assets->AddSoundEffect("button_click", "assets/sound/buttonclick.wav"); // Assume path is correct
     // --- Create Player Entity Structure ---
     playerEntity = &manager.addEntity();
 
@@ -119,7 +132,7 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
     playerEntity->getComponent<SoundComponent>().addSoundEffect("fire_cast", "fire_spell_sound");
     playerEntity->getComponent<SoundComponent>().addSoundEffect("star_cast", "star_spell_sound");
     playerEntity->getComponent<SoundComponent>().setBackgroundMusic("level_music", true, -1);
-
+    playerEntity->getComponent<SoundComponent>().addSoundEffect("gameover_sfx", "gameover_sfx");
     // Add Health/Weapon/Spells with PLACEHOLDER values (e.g., 0 or 1)
     playerEntity->addComponent<HealthComponent>(1, 1); // Start with 1 health (avoid 0 max health)
     playerEntity->addComponent<WeaponComponent>( "placeholder", 0, 99999, 0.0f, 0, 0.0f, 0, 1, "projectile", 1, 1, 999);
@@ -132,19 +145,6 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
     // --- Create Player Manager ---
     delete playerManager;
     playerManager = new Player(playerEntity); // PlayerManager uses the entity with placeholder components
-
-    // --- Load default state ---
-    // loadGameState will attempt to overwrite the placeholder values in the components
-    bool loadedSuccessfully = false;
-    if (saveLoadManager) {
-        loadedSuccessfully = saveLoadManager->loadGameState("saves/default.state");
-    } else {
-         std::cerr << "Error: SaveLoadManager not initialized!" << std::endl;
-    }
-
-    // --- Handle Load Success/Failure ---
-    if (!loadedSuccessfully) {
-        std::cerr << "Warning: Could not load default.state. Initializing components with default game start values." << std::endl;
 
         // --- Explicitly Set Default Stats on Components ---
         // Health
@@ -214,164 +214,361 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
 
 
         // Set default volumes if load failed
-        musicVolume = MIX_MAX_VOLUME / 2;
-        sfxVolume = MIX_MAX_VOLUME / 2;
-        Mix_VolumeMusic(musicVolume);
-        Mix_Volume(-1, sfxVolume);
+        Mix_VolumeMusic(Game::musicVolume);
+        Mix_Volume(-1, Game::sfxVolume);
         // --- End Setting Default Stats ---
 
-    } else {
-        // Load successful. Data was loaded into components.
-        std::cout << "Loaded default.state successfully. Settings: MusicVol=" << musicVolume << ", SfxVol=" << sfxVolume << std::endl;
-        // Ensure health isn't somehow invalid after load (e.g. 0 max health)
-        if (playerEntity->hasComponent<HealthComponent>()) {
-             auto& healthComp = playerEntity->getComponent<HealthComponent>();
-             if (healthComp.maxHealth <= 0) healthComp.maxHealth = 1; // Ensure maxHealth > 0
-             if (healthComp.health > healthComp.maxHealth) healthComp.health = healthComp.maxHealth;
-             if (healthComp.health <= 0) healthComp.health = 1; // Ensure health > 0 if max is > 0
-        }
-    }
-    // --- End Handling ---
 
     // --- Load Map ---
     delete map;
     map = new Map(manager, "terrain", 1, 32);
     map->LoadMap("assets/map.map", MAP_WIDTH, MAP_HEIGHT, 10, spawnPoints);
 
+
+
+        // --- Pause init
+        // --- Initialize Pause Menu Resources ---
+        std::cout << "Initializing Pause Menu resources..." << std::endl;
+        pauseFont = TTF_OpenFont("assets/font.ttf", 12); // Adjust size as needed
+        if (!pauseFont) {
+            std::cerr << "Failed to load pause font! SDL_ttf Error: " << TTF_GetError() << std::endl;
+            // Use default font from UIManager as fallback?
+            if(ui && ui->getFont()) pauseFont = ui->getFont();
+        }
+    
+        // Get textures from Asset Manager
+        pauseBoxTex = assets->GetTexture("pausebox");
+        buttonBoxTex = assets->GetTexture("buttonbox");
+        soundOnTex = assets->GetTexture("soundon");
+        soundOffTex = assets->GetTexture("soundoff");
+        sliderTrackTex = assets->GetTexture("slidebar");
+        sliderButtonTex = assets->GetTexture("slidebutton");
+    
+        // Pre-render button text
+        SDL_Color textColor = { 0, 0, 0, 255 }; // Black text
+        continueTextTex = renderPauseText("Continue", textColor);
+        saveTextTex = renderPauseText("Save Game", textColor);
+        returnTextTex = renderPauseText("Return to Title", textColor);
+    
+        // Initialize pause menu volume state based on current game volume
+        // isMusicMutedPause = (musicVolume == 0);
+        // storedMusicVolumePause = isMusicMutedPause ? (MIX_MAX_VOLUME / 2) : musicVolume; // Store sensible value if muted
+        // isSfxMutedPause = (sfxVolume == 0);
+        // storedSfxVolumePause = isSfxMutedPause ? (MIX_MAX_VOLUME / 2) : sfxVolume;
+        isDraggingBgmPause = false;
+        isDraggingSfxPause = false;
+
+    // --- Initialize Game Over Resources ---
+    std::cout << "Initializing Game Over resources..." << std::endl;
+    gameOverTex = assets->GetTexture("gameover");
+    // Use pauseFont or load a specific one
+    gameOverFont = pauseFont; // Reusing pause font for simplicity
+    if (!gameOverFont) {
+         std::cerr << "Error: Font not available for Game Over text!" << std::endl;
+    } else {
+         SDL_Color textColor = { 255, 255, 255, 220 }; // White, slightly transparent
+         // Destroy previous texture if any
+         if (gameOverTextTex) { SDL_DestroyTexture(gameOverTextTex); gameOverTextTex = nullptr; }
+         // Use renderPauseText helper or direct calls
+         SDL_Surface* surface = TTF_RenderText_Blended(gameOverFont, "Click anywhere to return to Title", textColor);
+         if(surface) {
+             gameOverTextTex = SDL_CreateTextureFromSurface(renderer, surface);
+             SDL_FreeSurface(surface);
+             if (!gameOverTextTex) { std::cerr << "Failed to create game over text texture!" << std::endl; }
+         } else { std::cerr << "Failed to render game over text surface!" << std::endl; }
+    }
+    // --- End Game Over Resources ---
+
     isRunning = true;
 }
 
-
-
-// --- Modify Game::handleEvents ---
+// --- Game::handleEvents (Main function using state machine) ---
 void Game::handleEvents() {
-    // Event polling happens in main loop first (SDL_PollEvent(&Game::event))
+    // Assuming event is polled in the main loop and passed to SceneManager,
+    // which passes it to the active scene's handleEvents (e.g., GameScene::handleEvents),
+    // which then calls this Game::handleEvents function.
+    // The static Game::event might be redundant if the event is passed down.
+    // We will use the static Game::event for now as previous code relies on it.
 
-    // Handle general events like quit FIRST
+    // Handle global events first (Quit, F11)
     if (Game::event.type == SDL_QUIT) {
-        Game::isRunning = false;
-        return; // Exit handling if quitting
+        isRunning = false; // Use the Game instance's isRunning flag
+        return;
     }
+    // F11 handled in main.cpp loop preferably
 
-    // --- Check for PAUSE/UNPAUSE key ('E') ---
-    // Handle this early and return immediately after toggling.
-    if (Game::event.type == SDL_KEYDOWN && Game::event.key.keysym.sym == SDLK_e) {
-        togglePause();
-        return; // Return here to prevent 'E' key affecting other logic in the same frame
-    }
+    // --- State-Specific Input Handling ---
+    switch (currentState) {
+        case GameState::Playing:
+            // Handle keys that work only during active play
+            if (Game::event.type == SDL_KEYDOWN) {
+                if (Game::event.key.keysym.sym == SDLK_ESCAPE) { // Pause Key
+                    togglePause();
+                    return; // Consume pause event
+                }
+            }
+            // Update mouse world coordinates only when playing
+            int mouseX_Screen, mouseY_Screen;
+            SDL_GetMouseState(&mouseX_Screen, &mouseY_Screen);
+            Game::mouseX = mouseX_Screen + Game::camera.x;
+            Game::mouseY = mouseY_Screen + Game::camera.y;
+            // Player movement input is handled by KeyboardController.update()
+            break; // End Playing state handling
 
-    // --- Handle Buff Selection Input (If Active) ---
-    if (isInBuffSelection) { // Check Buff Selection FIRST
-        if (Game::event.type == SDL_MOUSEBUTTONDOWN) {
-            if (Game::event.button.button == SDL_BUTTON_LEFT) {
-                int mouseX_Screen, mouseY_Screen;
-                SDL_GetMouseState(&mouseX_Screen, &mouseY_Screen);
+            case GameState::Paused:
+            // --- ADDED: Log entry into Paused state handling ---
+            // std::cout << "DEBUG: handleEvents in Paused state." << std::endl; // Can be noisy
 
-                // Calculate button layout again (ensure this matches UI::renderBuffSelectionUI)
-                int totalButtonWidth = 4 * 180 + 3 * 20;
-                int startX = (WINDOW_WIDTH - totalButtonWidth) / 2;
-                int buttonY = WINDOW_HEIGHT / 2 - 50;
-                int buttonW = 180;
-                int buttonH = 100;
-                int gap = 20;
+            // Handle buff selection input if active while paused
+            if (isInBuffSelection) {
+                 // --- ADDED: Log entry into Buff Selection block ---
+                 std::cout << "DEBUG: Paused state + isInBuffSelection = true. Checking input..." << std::endl;
 
-                 for (size_t i = 0; i < currentBuffOptions.size() && i < 4; ++i) {
-                    SDL_Rect buttonRect = {startX + static_cast<int>(i) * (buttonW + gap), buttonY, buttonW, buttonH};
-                    if (ui && ui->isMouseInside(mouseX_Screen, mouseY_Screen, buttonRect)) {
-                        applySelectedBuff(static_cast<int>(i));
-                        // Buff applied, exit event handling for this frame
-                        return; // <<< CRUCIAL: Return after handling mouse click
-                    }
+                 if (Game::event.type == SDL_MOUSEBUTTONDOWN) {
+                      // --- ADDED: Log Mouse Down Event ---
+                      std::cout << "DEBUG: Buff Selection - MOUSEBUTTONDOWN received." << std::endl;
+                     if (Game::event.button.button == SDL_BUTTON_LEFT) {
+                         int mouseX_Screen, mouseY_Screen;
+                         SDL_GetMouseState(&mouseX_Screen, &mouseY_Screen);
+                         std::cout << "DEBUG: Buff Selection - Left Click at (" << mouseX_Screen << ", " << mouseY_Screen << ")" << std::endl;
+
+                         // Calculate button layout again (ensure this matches UI::renderBuffSelectionUI)
+                         // TODO: Move this calculation to a helper or store rects if layout doesn't change
+                         int totalButtonWidth = 4 * 180 + 3 * 20;
+                         int startX = (WINDOW_WIDTH - totalButtonWidth) / 2;
+                         int buttonY = WINDOW_HEIGHT / 2 - 50;
+                         int buttonW = 180;
+                         int buttonH = 100;
+                         int gap = 20;
+
+                          for (size_t i = 0; i < currentBuffOptions.size() && i < 4; ++i) {
+                             SDL_Rect buttonRect = {startX + static_cast<int>(i) * (buttonW + gap), buttonY, buttonW, buttonH};
+                             // --- ADDED: Log Button Rect Check ---
+                             std::cout << "DEBUG: Checking Button " << i << " Rect: x=" << buttonRect.x << " y=" << buttonRect.y << " w=" << buttonRect.w << " h=" << buttonRect.h << std::endl;
+                             if (ui && ui->isMouseInside(mouseX_Screen, mouseY_Screen, buttonRect)) {
+                                 // --- ADDED: Log Button Hit ---
+                                 std::cout << "DEBUG: Click HIT on Button " << i << "! Applying buff..." << std::endl;
+                                 applySelectedBuff(static_cast<int>(i));
+                                 return; // Buff applied and exited, consume event
+                             }
+                          }
+                          // --- ADDED: Log if click missed all buttons ---
+                          std::cout << "DEBUG: Left click did not hit any buff buttons." << std::endl;
+                     }
+                 } else if (Game::event.type == SDL_KEYDOWN) {
+                      // --- ADDED: Log Key Down Event ---
+                      std::cout << "DEBUG: Buff Selection - KEYDOWN received. Key: " << SDL_GetKeyName(Game::event.key.keysym.sym) << std::endl;
+                     switch (Game::event.key.keysym.sym) {
+                         case SDLK_1:
+                              std::cout << "DEBUG: Key '1' pressed. Applying buff 0..." << std::endl;
+                              applySelectedBuff(0); return;
+                         case SDLK_2:
+                              std::cout << "DEBUG: Key '2' pressed. Applying buff 1..." << std::endl;
+                              applySelectedBuff(1); return;
+                         case SDLK_3:
+                              std::cout << "DEBUG: Key '3' pressed. Applying buff 2..." << std::endl;
+                              applySelectedBuff(2); return;
+                         case SDLK_4:
+                              std::cout << "DEBUG: Key '4' pressed. Applying buff 3..." << std::endl;
+                              applySelectedBuff(3); return;
+                         default:
+                              std::cout << "DEBUG: Key pressed is not 1-4." << std::endl;
+                              break; // Don't apply buff for other keys
+                     }
+                 } else {
+                      // --- ADDED: Log other events received during buff selection ---
+                     // std::cout << "DEBUG: Buff Selection - Received non-input event type: " << Game::event.type << std::endl; // Can be very noisy
                  }
-            }
-        }
-        if (Game::event.type == SDL_KEYDOWN) {
-            switch (Game::event.key.keysym.sym) {
-                case SDLK_1: applySelectedBuff(0); return; // <<< CRUCIAL: Return
-                case SDLK_2: applySelectedBuff(1); return; // <<< CRUCIAL: Return
-                case SDLK_3: applySelectedBuff(2); return; // <<< CRUCIAL: Return
-                case SDLK_4: applySelectedBuff(3); return; // <<< CRUCIAL: Return
-                // case SDLK_ESCAPE: exitBuffSelection(); return; // Optional cancel
-            }
-        }
-        // If we are in buff selection mode, but the specific event wasn't
-        // a buff selection action (e.g., mouse move, other key),
-        // still stop processing input here. Do not fall through.
-        return; // <<< CRUCIAL: Add this return at the end of the block
-    }
 
-    // --- Handle PAUSED state input ---
-    // This block is ONLY reached if isPaused is true AND isInBuffSelection is false
-    if (isPaused) {
-        if (Game::event.type == SDL_KEYDOWN) {
-            switch (Game::event.key.keysym.sym) {
-                // Music Volume Control
-                case SDLK_UP:
-                    std::cout << "DEBUG: SDLK_UP detected while paused." << std::endl;
-                    changeMusicVolume(VOLUME_STEP);
-                    break;
-                case SDLK_DOWN:
-                    std::cout << "DEBUG: SDLK_DOWN detected while paused." << std::endl;
-                    changeMusicVolume(-VOLUME_STEP);
-                    break;
-                // SFX Volume Control
-                case SDLK_LEFT:
-                    std::cout << "DEBUG: SDLK_LEFT detected while paused." << std::endl;
-                    changeSfxVolume(-VOLUME_STEP);
-                    break;
-                case SDLK_RIGHT:
-                    std::cout << "DEBUG: SDLK_RIGHT detected while paused." << std::endl;
-                    changeSfxVolume(VOLUME_STEP);
-                    break;
-                // --- Save/Load Keys ---
-                case SDLK_F5: // Quick Save
-                    if (saveLoadManager) {
-                        saveLoadManager->saveGameState(); // Use the manager to save
-                    } else {
-                         std::cerr << "Error: Cannot save, SaveLoadManager is null!" << std::endl;
-                    }
-                    break;
-                case SDLK_F9: // Quick Load
-                    if (saveLoadManager) {
-                        // Quick load needs logic to find the latest save file.
-                        // For now, let's load a specific file like 'quicksave.state'
-                        // or just print a message.
-                        std::cout << "Attempting Quick Load (loading quicksave.state)..." << std::endl;
-                        if (saveLoadManager->loadGameState("quicksave.state")) {
-                           // Optional: Add feedback on successful load
-                           std::cout << "Quicksave loaded." << std::endl;
-                           // Ensure game is unpaused after load
-                           if(isPaused) togglePause();
-                        } else {
-                           std::cout << "Failed to load quicksave.state." << std::endl;
-                        }
-                    } else {
-                         std::cerr << "Error: Cannot load, SaveLoadManager is null!" << std::endl;
-                    }
-                    break;
-                // --- End Save/Load Keys ---
-                 case SDLK_ESCAPE:
-                     // Optional: unpause before switching? togglePause();
+                 // If we are paused AND in buff selection, consume the event here
+                 // so it doesn't fall through to the pause menu UI handling below.
+                 return; // Consume event
+
+            } else { // Paused, but NOT in buff selection
+                 // Handle pause menu UI input
+                 handlePauseMenuEvents(); // Use helper function
+            }
+            break; // End Paused state handling
+
+        case GameState::GameOver:
+            // Handle input specific to the GAME OVER screen
+            if (Game::event.type == SDL_MOUSEBUTTONDOWN && Game::event.button.button == SDL_BUTTON_LEFT) {
+                std::cout << "Game Over screen clicked. Returning to Title." << std::endl;
+                // Game state will reset when GameScene::init runs again
+                if(SceneManager::instance) {
                      SceneManager::instance->switchToScene(SceneType::Menu);
-                     break;
-                default:
-                    break;
+                } else {
+                     std::cerr << "Error: SceneManager::instance is null, cannot return to title from Game Over!" << std::endl;
+                     // Fallback? Maybe just quit?
+                     // isRunning = false;
+                }
+                return; // Consume click event
             }
-        }
-        // If the game is paused (and not in buff selection), prevent fall-through.
-        return; // <<< CRUCIAL: Stops input from reaching game logic while paused
-    }
-
-    // --- Handle GAMEPLAY input (Only if NOT paused and NOT in buff selection) ---
-    int mouseX_Screen, mouseY_Screen;
-    SDL_GetMouseState(&mouseX_Screen, &mouseY_Screen);
-    Game::mouseX = mouseX_Screen + Game::camera.x;
-    Game::mouseY = mouseY_Screen + Game::camera.y;
-
-    // Gameplay actions (movement, firing) are likely handled in component updates.
-    // Handle any specific single-press gameplay keys here if necessary.
+            // Ignore other input during Game Over
+            break; // End GameOver state handling
+    } // End switch (currentState)
 
 } // End Game::handleEvents
+
+
+// --- ADD/REPLACE Helper: Handle Pause Menu Events ---
+// Add or Replace this helper function definition in game.cpp
+
+void Game::handlePauseMenuEvents() {
+    int mouseX_Screen, mouseY_Screen;
+    SDL_GetMouseState(&mouseX_Screen, &mouseY_Screen); // Use screen coordinates for UI clicks
+    SDL_Point mousePoint = {mouseX_Screen, mouseY_Screen};
+
+    // Use the static Game::event for input processing
+    SDL_Event& currentEvent = Game::event; // Use a reference for convenience
+
+    // Handle Mouse Clicks for Pause Menu UI
+    if (currentEvent.type == SDL_MOUSEBUTTONDOWN && currentEvent.button.button == SDL_BUTTON_LEFT) {
+        bool clickHandled = false; // Flag to prevent multiple sounds per click
+
+        // Helper lambda to play click sound via AssetManager
+        auto playPauseClickSound = [&]() {
+            if (!clickHandled && Game::instance && Game::instance->assets) { // Check instance too
+                Mix_Chunk* chunk = Game::instance->assets->GetSoundEffect("button_click");
+                if (chunk) {
+                    Mix_PlayChannel(-1, chunk, 0);
+                    clickHandled = true; // Mark sound as played for this click event
+                } else {
+                     std::cerr << "Warning: Could not get 'button_click' sound from AssetManager." << std::endl;
+                }
+            }
+        };
+
+        // Continue Button
+        if (SDL_PointInRect(&mousePoint, &continueButtonRect)) {
+            playPauseClickSound();
+            togglePause(); // Unpause the game
+            return; // Handled
+        }
+        // Save Button
+        if (SDL_PointInRect(&mousePoint, &saveButtonRect)) {
+            playPauseClickSound();
+            if (saveLoadManager) {
+                saveLoadManager->saveGameState(); // Save with timestamp
+                std::cout << "Game Saved (Timestamped)." << std::endl;
+            } else {
+                 std::cerr << "Error: Cannot save, SaveLoadManager is null!" << std::endl;
+            }
+            return; // Handled (stay paused)
+        }
+        // Return to Title Button
+        if (SDL_PointInRect(&mousePoint, &returnButtonRect)) {
+            playPauseClickSound();
+            togglePause(); // Unpause before switching might be cleaner
+            if(SceneManager::instance) {
+                 SceneManager::instance->switchToScene(SceneType::Menu);
+            } else {
+                 std::cerr << "Error: SceneManager::instance is null, cannot return to title!" << std::endl;
+            }
+            return; // Handled
+        }
+        // Mute Icons (Use static functions, manage stored value here)
+        if (SDL_PointInRect(&mousePoint, &bgmIconRectPause)) {
+            playPauseClickSound();
+            bool wasMuted = (Game::musicVolume == 0);
+            if (!wasMuted) { // Muting
+                storedMusicVolumePause = Game::musicVolume; // Store current before muting
+                Game::setMusicVolume(0);
+            } else { // Unmuting
+                // Restore using stored value. If stored was 0, set to a default level.
+                Game::setMusicVolume(storedMusicVolumePause > 0 ? storedMusicVolumePause : MIX_MAX_VOLUME / 4);
+                // Update stored value in case we unmuted to the default level
+                storedMusicVolumePause = Game::getMusicVolume();
+            }
+            calculatePauseLayout(); // Update slider button pos
+            return; // Handled
+        }
+         if (SDL_PointInRect(&mousePoint, &sfxIconRectPause)) {
+            playPauseClickSound();
+            bool wasMuted = (Game::sfxVolume == 0);
+             if (!wasMuted) { // Muting
+                storedSfxVolumePause = Game::sfxVolume; // Store current before muting
+                Game::setSfxVolume(0);
+            } else { // Unmuting
+                Game::setSfxVolume(storedSfxVolumePause > 0 ? storedSfxVolumePause : MIX_MAX_VOLUME / 4);
+                storedSfxVolumePause = Game::getSfxVolume();
+            }
+            calculatePauseLayout(); // Update slider button pos
+            return; // Handled
+        }
+        // Slider Button Drag Start
+        if (SDL_PointInRect(&mousePoint, &bgmSliderButtonRectPause)) {
+             playPauseClickSound(); // Sound on initial click
+             isDraggingBgmPause = true;
+             sliderDragXPause = mouseX_Screen - bgmSliderButtonRectPause.x;
+             return; // Handled
+        }
+         if (SDL_PointInRect(&mousePoint, &sfxSliderButtonRectPause)) {
+             playPauseClickSound(); // Sound on initial click
+             isDraggingSfxPause = true;
+             sliderDragXPause = mouseX_Screen - sfxSliderButtonRectPause.x;
+             return; // Handled
+        }
+    }
+    // Handle Mouse Button Up (Stop Dragging)
+    else if (currentEvent.type == SDL_MOUSEBUTTONUP && currentEvent.button.button == SDL_BUTTON_LEFT) {
+         if (isDraggingBgmPause || isDraggingSfxPause) {
+              isDraggingBgmPause = false;
+              isDraggingSfxPause = false;
+         }
+    }
+    // Handle Mouse Motion (Slider Drag)
+    else if (currentEvent.type == SDL_MOUSEMOTION) {
+        int w, h; // Get window size for layout recalculation
+        if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h); else { w = 800; h = 600;}
+
+         if (isDraggingBgmPause) {
+              int trackX = bgmSliderTrackRectPause.x;
+              int trackButtonW = bgmSliderButtonRectPause.w;
+              int trackW = bgmSliderTrackRectPause.w - trackButtonW;
+              trackW = std::max(1, trackW);
+              int targetButtonX = mouseX_Screen - sliderDragXPause;
+              targetButtonX = std::max(trackX, std::min(targetButtonX, trackX + trackW));
+              float percent = static_cast<float>(targetButtonX - trackX) / trackW;
+              int newVolume = static_cast<int>(std::round(percent * MIX_MAX_VOLUME));
+              if (newVolume != Game::musicVolume) { // Compare with static volume
+                   Game::setMusicVolume(newVolume); // Use static setter
+                   // Update stored volume only if unmuting via slider
+                   if (newVolume > 0) storedMusicVolumePause = newVolume;
+                   calculatePauseLayout(); // Update button visual
+              }
+         }
+          else if (isDraggingSfxPause) {
+               int trackX = sfxSliderTrackRectPause.x;
+               int trackButtonW = sfxSliderButtonRectPause.w;
+               int trackW = sfxSliderTrackRectPause.w - trackButtonW;
+               trackW = std::max(1, trackW);
+               int targetButtonX = mouseX_Screen - sliderDragXPause;
+               targetButtonX = std::max(trackX, std::min(targetButtonX, trackX + trackW));
+               float percent = static_cast<float>(targetButtonX - trackX) / trackW;
+               int newVolume = static_cast<int>(std::round(percent * MIX_MAX_VOLUME));
+               if (newVolume != Game::sfxVolume) { // Compare with static volume
+                    Game::setSfxVolume(newVolume); // Use static setter
+                    if (newVolume > 0) storedSfxVolumePause = newVolume;
+                    calculatePauseLayout(); // Update button visual
+               }
+         }
+    }
+    // Handle Key Presses for Pause Menu
+    else if (currentEvent.type == SDL_KEYDOWN) {
+        switch (currentEvent.key.keysym.sym) {
+            case SDLK_e:      // Resume via 'E' (Legacy, can remove if desired)
+            case SDLK_ESCAPE: // Resume via 'Escape'
+                togglePause();
+                // Use break or return depending on whether other keys might be processed later
+                // If only Escape/E unpauses, return is fine.
+                return; // Consume event and exit
+            // Add number keys or Up/Down selection for buttons later if desired
+            default:
+                break; // Ignore other keys
+        }
+    }
+} // End handlePauseMenuEvents
 
 
 void Game::spawnEnemy() {
@@ -455,13 +652,22 @@ void Game::spawnEnemy() {
 
 
 void Game::update(){
+    // --- Check Game State ---
+    // Only update gameplay elements if playing
+    if (currentState != GameState::Playing) {
+        // Still allow manager refresh? Maybe not if completely frozen.
+        // manager.refresh(); // Optional: refresh even if paused/gameover?
+        return; // Skip updates if Paused or GameOver
+    }
+    // If we reach here, currentState == GameState::Playing
+
     if (!isRunning || !playerEntity) return; // Check running state and player
 
     // --- Use member 'manager' ---
     manager.refresh();
 
     Uint32 currentTime = SDL_GetTicks();
-    if(!isPaused && !isInBuffSelection){ // Check buff selection state too
+    if(currentState != GameState::Paused && !isInBuffSelection){ // Check buff selection state too
 
         // --- Get groups using member 'manager' ---
         auto& colliders = manager.getGroup(Game::groupColliders);
@@ -595,6 +801,22 @@ void Game::update(){
     } else {
         // Game is paused
     }
+    // --- Check for Player Death AFTER updates and collisions ---
+    if (playerEntity && playerEntity->hasComponent<HealthComponent>() && playerEntity->getComponent<HealthComponent>().getHealth() <= 0) {
+        std::cout << "Player died! Switching to GameOver state." << std::endl;
+        currentState = GameState::GameOver; // Change state
+        Mix_HaltMusic(); // Stop game music
+        // --- ADDED: Play Game Over Sound Effect ---
+        if (playerEntity->hasComponent<SoundComponent>()) {
+            // Ensure the sound component exists before trying to play
+            playerEntity->getComponent<SoundComponent>().playSoundEffect("gameover_sfx");
+            std::cout << "DEBUG: Played gameover_sfx" << std::endl; // Optional debug log
+        } else {
+             std::cerr << "Warning: Player has no SoundComponent to play game over SFX!" << std::endl;
+        }
+        // --- END ADDED ---
+    }
+    // --- End Death Check ---
 } // End Game::update
 
 
@@ -641,6 +863,16 @@ void Game::clean(){
           delete assets;
           assets = nullptr;
       }
+    // --- ADDED: Clean up pause menu resources ---
+    if (pauseFont) { TTF_CloseFont(pauseFont); pauseFont = nullptr; }
+    // Textures are likely managed by AssetManager, but if loaded directly or pre-rendered:
+    if (continueTextTex) { SDL_DestroyTexture(continueTextTex); continueTextTex = nullptr; }
+    if (saveTextTex) { SDL_DestroyTexture(saveTextTex); saveTextTex = nullptr; }
+    if (returnTextTex) { SDL_DestroyTexture(returnTextTex); returnTextTex = nullptr; }
+    // Textures obtained via assets->GetTexture() don't need to be destroyed here.
+    // pauseBoxTex, buttonBoxTex, soundOnTex, etc. will be cleaned by ~AssetManager()
+    // --- END ADDED ---
+    if (gameOverTextTex) { SDL_DestroyTexture(gameOverTextTex); gameOverTextTex = nullptr; }
 
     // Window, Renderer, SDL subsystems are cleaned in main.cpp
     std::cout<< "Game instance resources cleaned."<< std::endl;
@@ -714,99 +946,146 @@ void Game::renderHealthBar(Entity& entity, Vector2D position) {
 }
 
 
+// In game.cpp:
+
+
 void Game::render(){
-    if (!Game::renderer) return;
-    SDL_RenderClear(Game::renderer);
-
-    // --- Get groups using member 'manager' ---
-    auto& tiles = manager.getGroup(Game::groupMap);
-    // auto& players = manager.getGroup(Game::groupPlayers); // Only one player, use playerEntity
-    auto& projectiles = manager.getGroup(Game::groupProjectiles);
-    auto& enemies = manager.getGroup(Game::groupEnemies);
-    auto& expOrbs = manager.getGroup(Game::groupExpOrbs);
-    // auto& colliders = manager.getGroup(Game::groupColliders); // Only needed for debug drawing
-
-    // Render game world only if not in buff selection AND not paused
-    if (!isInBuffSelection && !isPaused) {
-        for(auto* t : tiles) if(t && t->isActive()) t->draw();
-        for(auto* p : projectiles) if(p && p->isActive()) p->draw();
-        for(auto* e : enemies) if(e && e->isActive()) e->draw(); // Draw enemy sprites
-        if(playerEntity && playerEntity->isActive()) playerEntity->draw(); // Draw player sprite
-        for(auto* o : expOrbs) if(o && o->isActive()) o->draw();
-
-        // Draw health bars AFTER sprites
-        for(auto* e : enemies) {
-            if (e && e->isActive() && e->hasComponent<ColliderComponent>() && e->hasComponent<HealthComponent>()) {
-                 // Use ColliderComponent's position member which is updated in its update()
-                 Vector2D enemyPos = e->getComponent<ColliderComponent>().position;
-                 renderHealthBar(*e, enemyPos);
-             }
-        }
-        // Draw UI last
-        if (ui && playerManager) {
-            ui->renderUI(playerManager);
-        }
+    // Ensure renderer exists
+    if (!renderer) {
+         std::cerr << "Error: Game::render called but renderer is null!" << std::endl;
+         return;
     }
-    // --- PAUSE MENU / BUFF SELECTION RENDERING ---
-    else {
-         // Render world dimly underneath
-         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND); // Enable blending for dimming overlay
-         for(auto* t : tiles) if(t && t->isActive()) t->draw();
-         for(auto* p : projectiles) if(p && p->isActive()) p->draw();
-         for(auto* e : enemies) if(e && e->isActive()) e->draw();
-         if(playerEntity && playerEntity->isActive()) playerEntity->draw();
-         for(auto* o : expOrbs) if(o && o->isActive()) o->draw();
-         for(auto* e : enemies) {
+
+    // Start with a default clear color (e.g., black)
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+
+    // --- Render based on state ---
+    // Render game world elements first, potentially dimmed if Paused or GameOver
+    if (currentState == GameState::Playing || currentState == GameState::Paused || currentState == GameState::GameOver) {
+         bool dimWorld = (currentState == GameState::Paused || currentState == GameState::GameOver);
+
+         // --- Render Gameplay Elements ---
+         // Set dimming blend mode if needed (applied later with overlay)
+         // For now, render elements normally. The overlay achieves the dimming.
+
+         // Tiles first
+         for(auto* t : manager.getGroup(Game::groupMap)) if(t && t->isActive()) t->draw();
+
+         // Other gameplay elements
+         for(auto* o : manager.getGroup(Game::groupExpOrbs)) if(o && o->isActive()) o->draw();
+         for(auto* p : manager.getGroup(Game::groupProjectiles)) if(p && p->isActive()) p->draw();
+         for(auto* e : manager.getGroup(Game::groupEnemies)) if(e && e->isActive()) e->draw(); // Draw enemy sprites
+         if(playerEntity && playerEntity->isActive()) playerEntity->draw(); // Draw player sprite
+
+         // Health Bars (on top of characters)
+         for(auto* e : manager.getGroup(Game::groupEnemies)) {
              if (e && e->isActive() && e->hasComponent<ColliderComponent>() && e->hasComponent<HealthComponent>()) {
-                  Vector2D enemyPos = e->getComponent<ColliderComponent>().position;
-                  renderHealthBar(*e, enemyPos);
-              }
-         }
-         if (ui && playerManager) { // Render UI underneath overlay too
-             ui->renderUI(playerManager);
-         }
-
-         // Draw semi-transparent overlay
-         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150); // Semi-transparent black
-         SDL_Rect fullscreen = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
-         SDL_RenderFillRect(Game::renderer, &fullscreen);
-         SDL_SetRenderDrawBlendMode(Game::renderer, SDL_BLENDMODE_NONE); // Disable blending
-
-
-        // Render Buff Selection UI if active (drawn ON TOP of overlay)
-        if (isInBuffSelection && ui) {
-            ui->renderBuffSelectionUI(currentBuffOptions);
-        }
-        // Render General Pause Overlay (if paused BUT not in buff selection)
-        else if (isPaused && ui) {
-             // ... (Draw "PAUSED", Volume Controls, Save/Load text - unchanged) ...
-             SDL_Color white = {255, 255, 255, 255};
-             TTF_Font* fontToUse = ui->getLargeFont() ? ui->getLargeFont() : ui->getFont();
-             if (fontToUse) {
-                  int textW, textH;
-                  SDL_Texture* tempTex = ui->renderTextToTexture("PAUSED", white, fontToUse, textW, textH);
-                  if(tempTex) {
-                      ui->drawText("PAUSED", WINDOW_WIDTH / 2 - textW / 2, WINDOW_HEIGHT / 3 - textH / 2, white, fontToUse);
-                      SDL_DestroyTexture(tempTex);
-                  }
-                  int volY = WINDOW_HEIGHT / 2;
-                  int volX = WINDOW_WIDTH / 2 - 150;
-                  std::stringstream ssMusic;
-                  ssMusic << "Music Volume: " << static_cast<int>(round(musicVolume * 100.0 / MIX_MAX_VOLUME)) << "% (Up/Down)";
-                  ui->drawText(ssMusic.str(), volX, volY, white, ui->getFont());
-                  volY += 30;
-                  std::stringstream ssSfx;
-                  ssSfx << "SFX Volume:   " << static_cast<int>(round(sfxVolume * 100.0 / MIX_MAX_VOLUME)) << "% (Left/Right)";
-                  ui->drawText(ssSfx.str(), volX, volY, white, ui->getFont());
-                  volY += 40;
-                  ui->drawText("F5: Save Game | F9: Load Quicksave", volX, volY, white, ui->getFont()); // Show Save/Load Keys
-                   volY += 40;
-                   ui->drawText("Press 'E' to Resume", volX + 50, volY, white, ui->getFont()); // Adjusted X offset
+                 renderHealthBar(*e, e->getComponent<ColliderComponent>().position);
              }
-        }
-    }
+         }
+         // --- End Render Gameplay Elements ---
 
-    SDL_RenderPresent(Game::renderer);
+
+         // Render HUD / Gameplay UI (only if Playing)
+         if (currentState == GameState::Playing && ui && playerManager) {
+              ui->renderUI(playerManager);
+         }
+
+
+         // --- Render Pause State UI ---
+         if (currentState == GameState::Paused) {
+             // Draw semi-transparent overlay first
+             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150); // Semi-transparent black
+             SDL_Rect fullscreen = {0, 0, 0, 0}; // Initialize
+             if(renderer) SDL_GetRendererOutputSize(renderer, &fullscreen.w, &fullscreen.h); else { fullscreen.w = 800; fullscreen.h = 600; } // Get actual window size
+             SDL_RenderFillRect(renderer, &fullscreen);
+             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE); // IMPORTANT: Disable blending
+
+             // Render Buff Selection UI OR Pause Menu UI on top of overlay
+             if (isInBuffSelection && ui) {
+                  // Render Buff Selection UI if active
+                  std::cout << "DEBUG: Render - Rendering Buff Selection UI" << std::endl;
+                  ui->renderBuffSelectionUI(currentBuffOptions);
+             } else {
+                  // Render Pause Menu if not in buff selection
+                //   std::cout << "DEBUG: Render - Rendering Pause Menu UI" << std::endl;
+                  // Draw Pause Box Background
+                  if (pauseBoxTex) SDL_RenderCopy(renderer, pauseBoxTex, NULL, &pauseBoxRect);
+
+                  // Draw Buttons (Box + Text)
+                  if (buttonBoxTex) {
+                      SDL_RenderCopy(renderer, buttonBoxTex, NULL, &continueButtonRect);
+                      SDL_RenderCopy(renderer, buttonBoxTex, NULL, &saveButtonRect);
+                      SDL_RenderCopy(renderer, buttonBoxTex, NULL, &returnButtonRect);
+                  }
+                  if (continueTextTex) SDL_RenderCopy(renderer, continueTextTex, NULL, &continueTextRect);
+                  if (saveTextTex) SDL_RenderCopy(renderer, saveTextTex, NULL, &saveTextRect);
+                  if (returnTextTex) SDL_RenderCopy(renderer, returnTextTex, NULL, &returnTextRect);
+
+                  // Draw Volume Controls (Icons Only)
+                  SDL_Texture* bgmIcon = (Game::getMusicVolume() == 0) ? soundOffTex : soundOnTex;
+                  SDL_Texture* sfxIcon = (Game::getSfxVolume() == 0) ? soundOffTex : soundOnTex;
+                  if (bgmIcon) SDL_RenderCopy(renderer, bgmIcon, NULL, &bgmIconRectPause);
+                  if (sfxIcon) SDL_RenderCopy(renderer, sfxIcon, NULL, &sfxIconRectPause);
+                  if (sliderTrackTex) {
+                    SDL_RenderCopy(renderer, sliderTrackTex, NULL, &bgmSliderTrackRectPause);
+                    SDL_RenderCopy(renderer, sliderTrackTex, NULL, &sfxSliderTrackRectPause);
+                }
+                if (sliderButtonTex) {
+                    SDL_Color origColor; // Store original tint
+                    SDL_GetTextureColorMod(sliderButtonTex, &origColor.r, &origColor.g, &origColor.b);
+                    if(isDraggingBgmPause || isDraggingSfxPause) SDL_SetTextureColorMod(sliderButtonTex, 200, 200, 200); // Tint if dragging
+                    SDL_RenderCopy(renderer, sliderButtonTex, NULL, &bgmSliderButtonRectPause);
+                    SDL_RenderCopy(renderer, sliderButtonTex, NULL, &sfxSliderButtonRectPause);
+                    SDL_SetTextureColorMod(sliderButtonTex, origColor.r, origColor.g, origColor.b); // Reset tint
+                }
+             }
+         }
+         // --- Render Game Over Screen UI ---
+         else if (currentState == GameState::GameOver) {
+             // Draw semi-transparent overlay
+             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180); // Darker overlay for game over
+             SDL_Rect fullscreen = {0, 0, 0, 0};
+             if(renderer) SDL_GetRendererOutputSize(renderer, &fullscreen.w, &fullscreen.h); else { fullscreen.w = 800; fullscreen.h = 600; }
+             SDL_RenderFillRect(renderer, &fullscreen);
+             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+             // Render Game Over Image
+             if (gameOverTex) {
+                 int texW_orig, texH_orig;
+                 SDL_QueryTexture(gameOverTex, NULL, NULL, &texW_orig, &texH_orig);
+                 float gameOverScale = 0.8f;
+                 int windowW_render, windowH_render;
+                 SDL_GetRendererOutputSize(renderer, &windowW_render, &windowH_render);
+                 gameOverRect.w = static_cast<int>(texW_orig * gameOverScale);
+                 gameOverRect.h = static_cast<int>(texH_orig * gameOverScale);
+                 gameOverRect.w = std::min(gameOverRect.w, windowW_render * 4/5 );
+                 gameOverRect.h = std::min(gameOverRect.h, windowH_render * 4/5 );
+                 gameOverRect.x = (windowW_render - gameOverRect.w) / 2;
+                 gameOverRect.y = (windowH_render - gameOverRect.h) / 3;
+                 SDL_RenderCopy(renderer, gameOverTex, NULL, &gameOverRect);
+             }
+             // Render Game Over Text
+             if (gameOverTextTex) {
+                 int textW_orig, textH_orig;
+                 SDL_QueryTexture(gameOverTextTex, NULL, NULL, &textW_orig, &textH_orig);
+                 float goTextScale = 0.9f;
+                 gameOverTextRect.w = static_cast<int>(textW_orig * goTextScale);
+                 gameOverTextRect.h = static_cast<int>(textH_orig * goTextScale);
+                 int currentWindowWidth_text;
+                 SDL_GetRendererOutputSize(renderer, &currentWindowWidth_text, NULL); // Get current width
+                 gameOverTextRect.x = (currentWindowWidth_text - gameOverTextRect.w) / 2; // Center based on current width
+                 gameOverTextRect.y = gameOverRect.y + gameOverRect.h + 30; // Below image
+                 SDL_RenderCopy(renderer, gameOverTextTex, NULL, &gameOverTextRect);
+             }
+        } // End if/else if for Paused/GameOver states
+
+    } // End if (Playing or Paused or GameOver) - Renders nothing if in a different state
+
+    SDL_RenderPresent(renderer);
 } // End render
 
 
@@ -877,23 +1156,30 @@ void Game::generateBuffOptions() {
 }
 
 // --- enterBuffSelection & exitBuffSelection (Unchanged) ---
+// In game.cpp:
 void Game::enterBuffSelection() {
-    if (!isInBuffSelection) {
-        // std::cout << "Entering Buff Selection..." << std::endl;
+    // Should only enter if currently playing
+    if (currentState == GameState::Playing) {
+        std::cout << "Entering Buff Selection..." << std::endl;
         isInBuffSelection = true;
-        isPaused = true; // Use instance member pause flag
-        generateBuffOptions(); // Call instance method
-
+        currentState = GameState::Paused; // <<< SET GameState to Paused
+        // REMOVED: isPaused = true;
+        if (Mix_PlayingMusic()) Mix_PauseMusic(); // Pause music for buff selection
+        generateBuffOptions();
+        // Optional: Call calculatePauseLayout if buff UI depends on it? Unlikely.
+    } else {
+         std::cout << "Warning: Tried to enter buff selection when not in Playing state." << std::endl;
     }
- }
+}
 void Game::exitBuffSelection() {
-     if (isInBuffSelection) {
-        // std::cout << "Exiting Buff Selection..." << std::endl;
-        isInBuffSelection = false;
-        isPaused = false; // Use instance member pause flag
-        currentBuffOptions.clear(); // Use instance member
-
-     }
+    if (isInBuffSelection) { // Only act if we are actually in buff selection
+       std::cout << "Exiting Buff Selection..." << std::endl;
+       isInBuffSelection = false;
+       currentState = GameState::Playing; // <<< SET GameState back to Playing
+       // REMOVED: isPaused = false;
+       currentBuffOptions.clear();
+       if (Mix_PausedMusic()) Mix_ResumeMusic(); // Resume music after selection
+    }
 }
 
 
@@ -998,23 +1284,29 @@ void Game::applySelectedBuff(int index) {
     exitBuffSelection();
 }
 void Game::togglePause() {
-    isPaused = !isPaused;
-    std::cout << "togglePause called, new state: " << (isPaused ? "Paused" : "Running") << std::endl;
-
-    if (isPaused) {
-        // Pause the music when the game is paused
-        if (Mix_PlayingMusic()) { // Check if music is playing before pausing
-            Mix_PauseMusic();
-            std::cout << "Music Paused." << std::endl;
-        }
-    } else {
-        // Resume the music when the game is unpaused
-        if (Mix_PausedMusic()) { // Check if music was paused before resuming
-            Mix_ResumeMusic();
-            std::cout << "Music Resumed." << std::endl;
-        }
+    // Check current state to toggle correctly
+    if (currentState == GameState::Playing) {
+        currentState = GameState::Paused; // Enter Paused state
+        std::cout << "togglePause: Paused" << std::endl;
+        if (Mix_PlayingMusic()) Mix_PauseMusic(); // Pause SDL_mixer music
+        // Update pause menu layout and state when entering pause
+        isDraggingBgmPause = false; // Ensure dragging stops
+        isDraggingSfxPause = false;
+        // Update stored volumes based on current game volume when pausing
+        storedMusicVolumePause = Game::getMusicVolume();
+        storedSfxVolumePause = Game::getSfxVolume();
+        calculatePauseLayout(); // Calculate positions for drawing pause UI
+    } else if (currentState == GameState::Paused && !isInBuffSelection) {
+        // IMPORTANT: Only unpause if not in buff selection screen
+        currentState = GameState::Playing; // Return to Playing state
+        // std::cout << "togglePause: Resumed" << std::endl;
+        if (Mix_PausedMusic()) Mix_ResumeMusic(); // Resume SDL_mixer music
+        // No need to exit buff selection here, as we only unpause if NOT in it
+    } else if (currentState == GameState::Paused && isInBuffSelection) {
+         std::cout << "togglePause: Cannot unpause while buff selection is active." << std::endl;
+         // Or maybe Escape should cancel buff selection AND unpause? Requires different logic.
     }
-
+    // If currentState is GameOver, pressing pause key does nothing here
 }
 
 void Game::changeMusicVolume(int delta) {
@@ -1040,4 +1332,183 @@ void Game::changeSfxVolume(int delta) {
     // Optional: Adjust volume of existing sound chunks if AssetManager holds them
     // This is more complex and depends on how sounds are managed.
     // For now, Mix_Volume(-1, ...) affects future sounds reliably.
+}
+
+
+// --- ADD Helper: Calculate Pause Layout ---
+void Game::calculatePauseLayout() {
+    if (!isRunning || !renderer) return; // Need renderer for window size
+
+    int windowWidth, windowHeight;
+    SDL_GetRendererOutputSize(renderer, &windowWidth, &windowHeight);
+
+    // --- Scaling Factor (Based on Game's main scaling logic) ---
+    const int referenceWidth = 1920;
+    const int referenceHeight = 1080;
+    float scaleX = static_cast<float>(windowWidth) / static_cast<float>(referenceWidth);
+    float scaleY = static_cast<float>(windowHeight) / static_cast<float>(referenceHeight);
+    float scaleFactor = std::min(scaleX, scaleY);
+    scaleFactor = std::max(scaleFactor, 0.6f); // Example minimum scale for pause elements
+
+    // --- Pause Box (Slightly Bigger & Scaled) ---
+    int boxW_orig = 128;
+    int boxH_orig = 245;
+    pauseBoxRect.w = static_cast<int>(boxW_orig * 1.2f * scaleFactor);
+    pauseBoxRect.h = static_cast<int>(boxH_orig * 1.2f * scaleFactor);
+    pauseBoxRect.w = std::max(120, pauseBoxRect.w); // Adjusted min width
+    pauseBoxRect.h = std::max(240, pauseBoxRect.h); // Adjusted min height
+    pauseBoxRect.x = (windowWidth - pauseBoxRect.w) / 2;
+    pauseBoxRect.y = (windowHeight - pauseBoxRect.h) / 2;
+
+    // --- Calculate Element Sizes ---
+    // --- INCREASED BASE PADDING ---
+    int internalPaddingBase = 15; // Increased from 10 for more spacing
+    // --- END INCREASE ---
+    int internalPadding = std::max(5, static_cast<int>(internalPaddingBase * scaleFactor));
+    int availableWidth = pauseBoxRect.w - 2 * internalPadding;
+
+    // Button Box Dimensions (Scaled to fit availableWidth)
+    int btnBoxW_orig = 230;
+    int btnBoxH_orig = 60;
+    float btnScale = (btnBoxW_orig > 0) ? static_cast<float>(availableWidth) / btnBoxW_orig : 1.0f;
+    int btnBoxW = availableWidth;
+    int btnBoxH = static_cast<int>(btnBoxH_orig * btnScale);
+    btnBoxH = std::max(15, btnBoxH); // Ensure minimum button height
+
+    // Volume Control Sizes
+    // Estimate needed height based on button height now
+    int volAreaHeightEst = btnBoxH * 2.0f; // Reduced height estimate relative to buttons
+    int iconSize = static_cast<int>(volAreaHeightEst * 0.35f); // Icon size relative to area height
+    iconSize = std::max(15, iconSize); // Minimum icon size
+    int sliderHeight = std::max(3, iconSize / 3); // Slider track height
+    int sliderWidth = std::max(20, availableWidth - iconSize - internalPadding); // Slider track width
+    int sliderButtonW = std::max(5, iconSize / 2); // Slider button width
+    int sliderButtonH = std::max(8, static_cast<int>(sliderHeight * 1.5f)); // Slider button height
+
+    // --- Calculate Total Required Height & Dynamic Padding ---
+    // Calculate height needed just for the main elements themselves
+    int volRowHeight = iconSize + internalPadding / 2; // Height for one volume row + minimal gap
+    int totalElementHeightOnly = (btnBoxH * 3) + (volRowHeight * 2);
+
+    // Calculate available space for padding inside the box
+    int availableHeightForPadding = pauseBoxRect.h - totalElementHeightOnly;
+    int numGaps = 6; // Gaps: top, btn1-vol, vol-vol, vol-btn2, btn2-btn3, bottom
+    int dynamicPaddingY = 1; // Default padding if space is tight
+
+    if (availableHeightForPadding > numGaps * 2) { // Only distribute if significant space available
+        dynamicPaddingY = availableHeightForPadding / numGaps; // Distribute remaining space evenly
+    } else {
+        std::cout << "Warning: Pause elements might be cramped. Minimal Padding." << std::endl;
+    }
+    // Ensure some minimum padding
+    dynamicPaddingY = std::max(3, dynamicPaddingY);
+
+
+    // --- Position Elements Vertically using Dynamic Padding ---
+    int currentY = pauseBoxRect.y + dynamicPaddingY; // Start with top padding
+
+    // Continue Button
+    continueButtonRect = { pauseBoxRect.x + internalPadding, currentY, btnBoxW, btnBoxH };
+    currentY += btnBoxH + dynamicPaddingY; // Add padding below
+
+    // Volume Controls Area Start
+    int volAreaStartY = currentY;
+
+    // BGM Row (Position elements within this row)
+    bgmIconRectPause = {pauseBoxRect.x + internalPadding, volAreaStartY + (volRowHeight - iconSize) / 2, iconSize, iconSize};
+    bgmSliderTrackRectPause = {bgmIconRectPause.x + iconSize + internalPadding, volAreaStartY + (volRowHeight - sliderHeight) / 2, sliderWidth, sliderHeight};
+    int bgmSliderTrackW = std::max(1, bgmSliderTrackRectPause.w - sliderButtonW);
+    float bgmPercent = (MIX_MAX_VOLUME == 0) ? 0.0f : static_cast<float>(Game::getMusicVolume()) / MIX_MAX_VOLUME;
+    bgmSliderButtonRectPause = { bgmSliderTrackRectPause.x + static_cast<int>(bgmPercent * bgmSliderTrackW),
+                                 bgmSliderTrackRectPause.y + (sliderHeight - sliderButtonH) / 2,
+                                 sliderButtonW, sliderButtonH };
+
+    // SFX Row (Position elements within this row, offset from BGM row)
+    int sfxRowStartY = volAreaStartY + volRowHeight; // Start below BGM row
+    sfxIconRectPause = {pauseBoxRect.x + internalPadding, sfxRowStartY + (volRowHeight - iconSize) / 2, iconSize, iconSize};
+    sfxSliderTrackRectPause = {sfxIconRectPause.x + iconSize + internalPadding, sfxRowStartY + (volRowHeight - sliderHeight) / 2, sliderWidth, sliderHeight};
+    int sfxSliderTrackW = std::max(1, sfxSliderTrackRectPause.w - sliderButtonW);
+    float sfxPercent = (MIX_MAX_VOLUME == 0) ? 0.0f : static_cast<float>(Game::getSfxVolume()) / MIX_MAX_VOLUME;
+    sfxSliderButtonRectPause = { sfxSliderTrackRectPause.x + static_cast<int>(sfxPercent * sfxSliderTrackW),
+                                 sfxSliderTrackRectPause.y + (sliderHeight - sliderButtonH) / 2,
+                                 sliderButtonW, sliderButtonH };
+
+    // Advance Y position past both volume rows + padding
+    currentY = sfxRowStartY + volRowHeight + dynamicPaddingY;
+
+    // Save Button
+    saveButtonRect = { pauseBoxRect.x + internalPadding, currentY, btnBoxW, btnBoxH };
+    currentY += btnBoxH + dynamicPaddingY; // Add padding below
+
+    // Return Button
+    returnButtonRect = { pauseBoxRect.x + internalPadding, currentY, btnBoxW, btnBoxH };
+    // currentY += btnBoxH + dynamicPaddingY; // Add padding below (optional if needed)
+
+
+    // --- Calculate Text Positions (Centered in Buttons) ---
+    // Ensure text textures exist before querying
+    if (continueTextTex) {
+        SDL_QueryTexture(continueTextTex, NULL, NULL, &continueTextRect.w, &continueTextRect.h);
+        // Scale text size? Maybe use a fixed smaller font for pause menu buttons?
+        // Let's assume text fits for now, just center it.
+        continueTextRect.x = continueButtonRect.x + (continueButtonRect.w - continueTextRect.w) / 2;
+        continueTextRect.y = continueButtonRect.y + (continueButtonRect.h - continueTextRect.h) / 2;
+    }
+    if (saveTextTex) {
+        SDL_QueryTexture(saveTextTex, NULL, NULL, &saveTextRect.w, &saveTextRect.h);
+        saveTextRect.x = saveButtonRect.x + (saveButtonRect.w - saveTextRect.w) / 2;
+        saveTextRect.y = saveButtonRect.y + (saveButtonRect.h - saveTextRect.h) / 2;
+    }
+    if (returnTextTex) {
+        SDL_QueryTexture(returnTextTex, NULL, NULL, &returnTextRect.w, &returnTextRect.h);
+        returnTextRect.x = returnButtonRect.x + (returnButtonRect.w - returnTextRect.w) / 2;
+        returnTextRect.y = returnButtonRect.y + (returnButtonRect.h - returnTextRect.h) / 2;
+    }
+}
+
+
+
+
+SDL_Texture* Game::renderPauseText(const std::string& text, SDL_Color color) { // Ensure "Game::" is present
+    if (!pauseFont) { // Check if pauseFont is loaded
+        std::cerr << "Error: renderPauseText called but pauseFont is null!" << std::endl;
+        return nullptr;
+    }
+    if (!renderer) { // Check if renderer is valid
+         std::cerr << "Error: renderPauseText called but renderer is null!" << std::endl;
+         return nullptr;
+    }
+
+    SDL_Surface* surface = TTF_RenderText_Blended(pauseFont, text.c_str(), color);
+    if (!surface) {
+        std::cerr << "Failed to render pause text surface ('" << text << "'): " << TTF_GetError() << std::endl;
+        return nullptr;
+    }
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (!texture) {
+        std::cerr << "Failed to create pause text texture ('" << text << "'): " << SDL_GetError() << std::endl;
+    }
+    SDL_FreeSurface(surface); // Free surface regardless of texture creation success
+    return texture;
+}
+
+// --- Update Volume Setters/Getters (Make Static) ---
+void Game::setMusicVolume(int volume) { // Now static
+    musicVolume = std::max(0, std::min(volume, MIX_MAX_VOLUME));
+    Mix_VolumeMusic(musicVolume);
+    std::cout << "Static Music Volume set to: " << musicVolume << std::endl;
+}
+
+void Game::setSfxVolume(int volume) { // Now static
+    sfxVolume = std::max(0, std::min(volume, MIX_MAX_VOLUME));
+    Mix_Volume(-1, sfxVolume);
+    std::cout << "Static SFX Volume set to: " << sfxVolume << std::endl;
+}
+
+int Game::getMusicVolume() { // Now static
+    return musicVolume;
+}
+
+int Game::getSfxVolume() { // Now static
+    return sfxVolume;
 }

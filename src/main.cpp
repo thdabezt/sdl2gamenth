@@ -9,6 +9,39 @@
 #include <SDL_mixer.h>
 #define SDL_MAIN_HANDLED
 
+// --- ADDED: Global state for fullscreen toggle ---
+static SDL_Window* mainWindow = nullptr; // Pointer to the main window
+// --- END ADDED ---
+
+// --- ADDED: Toggle Function ---
+void toggleFullscreen() {
+    if (!mainWindow) {
+        std::cerr << "Error: mainWindow pointer is null in toggleFullscreen!" << std::endl;
+        return;
+    }
+
+    Uint32 currentFlags = SDL_GetWindowFlags(mainWindow);
+    bool isFullscreen = (currentFlags & SDL_WINDOW_FULLSCREEN_DESKTOP) || (currentFlags & SDL_WINDOW_FULLSCREEN);
+
+    if (isFullscreen) {
+        // Switch to Windowed Mode (800x600)
+        SDL_SetWindowFullscreen(mainWindow, 0); // Turn off fullscreen first
+        SDL_SetWindowSize(mainWindow, 800, 600);
+        SDL_SetWindowPosition(mainWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED); // Re-center
+        std::cout << "Switched to Windowed (800x600)." << std::endl;
+    } else {
+        // Switch to Fullscreen Desktop Mode (Uses current desktop resolution)
+        // This is generally preferred over setting a fixed resolution like 1920x1080
+        SDL_SetWindowFullscreen(mainWindow, SDL_WINDOW_FULLSCREEN_DESKTOP);
+        std::cout << "Switched to Fullscreen." << std::endl;
+        // If you specifically want 1920x1080 fullscreen regardless of desktop:
+        // SDL_SetWindowSize(mainWindow, 1920, 1080);
+        // SDL_SetWindowFullscreen(mainWindow, SDL_WINDOW_FULLSCREEN);
+    }
+    // Note: SDL should generate a WINDOWEVENT_RESIZED which MenuScene handles to recalculate layout
+}
+// --- END ADDED ---
+
 int main(int argc, char* argv[]) {
     // Setup console
     if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole()) {
@@ -50,6 +83,9 @@ int main(int argc, char* argv[]) {
         WINDOW_HEIGHT, 
         WINDOW_FULLSCREEN
     );
+    // --- ADDED: Assign window to global pointer ---
+    mainWindow = window;
+    // --- END ADDED ---
     
     if (!window) {
         std::cerr << "Failed to create window: " << SDL_GetError() << std::endl;
@@ -72,8 +108,6 @@ int main(int argc, char* argv[]) {
     // Add scenes
     sceneManager.addScene(SceneType::Menu, std::make_unique<MenuScene>());
     sceneManager.addScene(SceneType::Game, std::make_unique<GameScene>());
-    sceneManager.addScene(SceneType::Win, std::make_unique<WinScene>());
-    sceneManager.addScene(SceneType::Lose, std::make_unique<LoseScene>());
     
     // Start with the menu scene
     sceneManager.switchToScene(SceneType::Menu);
@@ -96,9 +130,15 @@ while (running) {
             running = false;
         }
         
-        // Copy the event to the static Game event
-        Game::event = event;
-        
+         if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_F11) {
+            toggleFullscreen();
+            // Skip processing this event further by scenes if desired, though unlikely to conflict
+            // continue; // Optional: skip SceneManager::handleEvents for this specific event
+        }
+
+        if(Game::instance) { // Check if Game::instance is valid before assigning
+            Game::event = event;
+         }
         // Process events in the scene manager
         sceneManager.handleEvents(event);
     }

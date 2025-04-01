@@ -15,10 +15,18 @@ public:
     void renderHealthBar(Entity& entity, Vector2D position);
     void takeDamage(int damage) {
         health -= damage;
-        if (health <= 0) {
+        if (health <= 0) { // Check if health dropped to 0 or below
             health = 0;
-            // Handle entity death here (e.g., destroy the entity)
-            entity->destroy();
+
+            // Check if this entity should be destroyed (i.e., it's NOT the player)
+            if (entity != nullptr && entity->hasComponent<ColliderComponent>()) {
+                const std::string& tag = entity->getComponent<ColliderComponent>().tag;
+                if (tag != "player") {
+                    // It's not the player, so destroy it immediately
+                    entity->destroy();
+                    // std::cout << tag << " destroyed by HealthComponent." << std::endl; // Optional debug
+                }
+            } 
         }
     }
     void setMaxHealth(int newMax) {

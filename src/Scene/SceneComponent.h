@@ -1,5 +1,3 @@
 #include "SceneManager.h"
 #include "MenuScene.h"
 #include "GameScene.h"
-#include "WinScene.h"
-#include "LoseScene.h"

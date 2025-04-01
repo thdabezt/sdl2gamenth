@@ -63,6 +63,11 @@ struct BuffInfo {
     BuffType type = BuffType::INVALID;
     float amount = 0.0f;
 };
+enum class GameState {
+    Playing,
+    Paused,
+    GameOver
+};
 
 class Game {
     public:
@@ -80,17 +85,22 @@ class Game {
         AssetManager* assets = nullptr; // <<< KEEP this declaration (Ensure only one exists)
         Player* playerManager = nullptr;
         Entity* playerEntity = nullptr;
-        int musicVolume = MIX_MAX_VOLUME / 2;
-        int sfxVolume = MIX_MAX_VOLUME / 2;
         SaveLoadManager* saveLoadManager = nullptr;
         std::vector<Vector2D> spawnPoints;
-        // --- REMOVE DUPLICATE DECLARATIONS ---
-        // Remove lines like these if they exist elsewhere in the class definition:
-        // AssetManager* assets = nullptr; // REMOVE if duplicate
-        // Manager manager;             // REMOVE if duplicate
-        // --- END REMOVAL ---
+        std::string currentPlayerName = "Player"; // Default name
+        void setPlayerName(const std::string& name) {
+            // Set name, ensuring it's not empty (use default if it is)
+            currentPlayerName = name.empty() ? "Player" : name;
+            std::cout << "Player name set to: " << currentPlayerName << std::endl; // Debug log
+        }
+        std::string getPlayerName() const {
+            return currentPlayerName;
+        }
     
-    
+        // --- ADD Game State ---
+        GameState currentState = GameState::Playing;
+        // --- END Game State ---
+
         Game();
         ~Game();
         void init(const char* title, int xpos, int ypos, int width, int height, bool fullscreen);
@@ -100,7 +110,7 @@ class Game {
         void clean();
         bool running() { return isRunning; }
         void setRunning(bool running) { isRunning = running; }
-        bool getPaused() const { return isPaused; }
+
         void togglePause() ;
         void rezero();
         Entity& getPlayer();
@@ -112,23 +122,39 @@ class Game {
         void applySelectedBuff(int index);
         
         const int VOLUME_STEP = 10;
-        int getMusicVolume() const { return musicVolume; }
-        int getSfxVolume() const { return sfxVolume; }
-    
+ 
+        // --- Make volume members static ---
+        static int musicVolume; // Default value set in .cpp
+        static int sfxVolume;   // Default value set in .cpp
+
+        // --- Make accessors/modifiers static ---
+        static void setMusicVolume(int volume);
+        static void setSfxVolume(int volume);
+        static int getMusicVolume(); // Removed const as static members are accessed
+        static int getSfxVolume();   // Removed const
+
+
         enum groupLabels : std::size_t {
             groupMap, groupPlayers, groupColliders, groupProjectiles, groupEnemies, groupExpOrbs
         };
-    
+        
+        // --- ADD Game Over Resources ---
+        SDL_Texture* gameOverTex = nullptr;
+        SDL_Texture* gameOverTextTex = nullptr;
+        SDL_Rect gameOverRect;
+        SDL_Rect gameOverTextRect;
+        TTF_Font* gameOverFont = nullptr; // Or reuse pauseFont
+        // --- END Game Over Resources ---
+
     private:
         // Private methods
         void changeMusicVolume(int delta);
         void changeSfxVolume(int delta);
         void generateBuffOptions();
-    
+        
         // Private members
         UIManager* ui = nullptr;
         Map* map = nullptr;
-        bool isPaused = false;
         Uint32 lastEnemySpawnTime = 0;
         Uint32 lastShotTime = 0;
         bool isInBuffSelection = false;
@@ -144,4 +170,51 @@ class Game {
         const int BUFF_PIERCE_AMOUNT = 1;
         const int BUFF_FIRE_RATE_AMOUNT = 50;
         const int BUFF_BURST_COUNT_AMOUNT = 1;
-    };
+
+        // --- Pause Menu UI State & Resources ---
+    TTF_Font* pauseFont = nullptr;
+    SDL_Texture* pauseBoxTex = nullptr;
+    SDL_Texture* buttonBoxTex = nullptr; // Reused texture for buttons
+    SDL_Texture* soundOnTex = nullptr;
+    SDL_Texture* soundOffTex = nullptr;
+    SDL_Texture* sliderTrackTex = nullptr;
+    SDL_Texture* sliderButtonTex = nullptr;
+
+    // Button Text Textures
+    SDL_Texture* continueTextTex = nullptr;
+    SDL_Texture* saveTextTex = nullptr;
+    SDL_Texture* returnTextTex = nullptr;
+
+    // Rects for layout
+    SDL_Rect pauseBoxRect;
+    SDL_Rect continueButtonRect;
+    SDL_Rect continueTextRect;
+    SDL_Rect bgmIconRectPause;
+    SDL_Rect bgmSliderTrackRectPause;
+    SDL_Rect bgmSliderButtonRectPause;
+    SDL_Rect sfxIconRectPause;
+    SDL_Rect sfxSliderTrackRectPause;
+    SDL_Rect sfxSliderButtonRectPause;
+    SDL_Rect saveButtonRect;
+    SDL_Rect saveTextRect;
+    SDL_Rect returnButtonRect;
+    SDL_Rect returnTextRect;
+
+    // Volume/Mute state specifically for the pause menu interaction
+    // These will reflect the actual game volumes when the menu opens
+    // bool isMusicMutedPause = false;
+    // bool isSfxMutedPause = false;
+    int storedMusicVolumePause = MIX_MAX_VOLUME / 2; // Stores volume before mute
+    int storedSfxVolumePause = MIX_MAX_VOLUME / 2;   // Stores volume before mute
+    bool isDraggingBgmPause = false;
+    bool isDraggingSfxPause = false;
+    int sliderDragXPause = 0; // Horizontal dragging offset
+
+    // --- End Pause Menu UI ---
+
+    // Helper function for pause layout (optional, can do in render/handleEvents)
+    void calculatePauseLayout();
+    SDL_Texture* renderPauseText(const std::string& text, SDL_Color color); // Helper
+    void handlePauseMenuEvents(); // <<< ADD THIS DECLARATION
+};
+

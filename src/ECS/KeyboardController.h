@@ -80,11 +80,11 @@ private:
         // if (!initialized) return;
         if (Game::event.type == SDL_KEYDOWN) {
             switch (Game::event.key.keysym.sym) {
-            case SDLK_ESCAPE:
-                 if (Game::instance && SceneManager::instance) {
-                     SceneManager::instance->switchToScene(SceneType::Menu);
-                 }
-                break;
+            // case SDLK_ESCAPE:
+            //      if (Game::instance && SceneManager::instance) {
+            //          SceneManager::instance->switchToScene(SceneType::Menu);
+            //      }
+            //     break;
             default: break;
             }
         }

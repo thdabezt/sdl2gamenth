@@ -35,7 +35,7 @@ SDL_Texture* AssetManager::GetTexture(std::string id){
 void AssetManager::AddSoundEffect(std::string id, const char* path) {
     Mix_Chunk* sound = Mix_LoadWAV(path);
     if (sound == nullptr) {
-        // std::cerr << "Failed to load sound effect: " << path << "! SDL_mixer Error: " << Mix_GetError() << std::endl;
+        std::cerr << "Failed to load sound effect: " << path << "! SDL_mixer Error: " << Mix_GetError() << std::endl;
     } else {
         soundEffects.emplace(id, sound);
     }
@@ -45,7 +45,7 @@ Mix_Chunk* AssetManager::GetSoundEffect(std::string id) {
     if (soundEffects.count(id)) {
         return soundEffects[id];
     }
-    // std::cerr << "Sound effect not found: " << id << std::endl;
+    std::cerr << "Sound effect not found: " << id << std::endl;
     return nullptr;
 }
 

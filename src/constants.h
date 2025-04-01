@@ -5,7 +5,7 @@ const char* const WINDOW_TITLE = "Game";
 const int WINDOW_POS_X = SDL_WINDOWPOS_CENTERED;
 const int WINDOW_POS_Y = SDL_WINDOWPOS_CENTERED;
 const int WINDOW_WIDTH = 800;
-const int WINDOW_HEIGHT = 640;
+const int WINDOW_HEIGHT = 600;
 const bool WINDOW_FULLSCREEN = false;
 const int FPS = 60;
 

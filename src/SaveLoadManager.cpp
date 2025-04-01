@@ -76,6 +76,7 @@ void SaveLoadManager::saveGameState(const std::string& filename) {
     Entity* playerEntity = gameInstance->playerEntity;
 
     // --- Save Player Stats ---
+    saveFile << "PlayerName:" << gameInstance->getPlayerName() << std::endl;
     saveFile << "PlayerLevel:" << playerManager->getLevel() << std::endl;
     saveFile << "PlayerExperience:" << playerManager->getExperience() << std::endl;
     saveFile << "PlayerExpToNext:" << playerManager->getExperienceToNextLevel() << std::endl;
@@ -205,7 +206,8 @@ bool SaveLoadManager::loadGameState(const std::string& filename) {
 
         try {
             // --- Load Player Stats ---
-            if (key == "PlayerLevel") playerManager->setLevel(std::stoi(value));
+            if (key == "PlayerName") gameInstance->setPlayerName(value); 
+            else if (key == "PlayerLevel") playerManager->setLevel(std::stoi(value));
             else if (key == "PlayerExperience") playerManager->setExperience(std::stoi(value));
             else if (key == "PlayerExpToNext") playerManager->setExperienceToNextLevel(std::stoi(value));
             else if (key == "PlayerEnemiesDefeated") playerManager->setEnemiesDefeated(std::stoi(value));
