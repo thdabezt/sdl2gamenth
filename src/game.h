@@ -211,7 +211,7 @@ class Game {
     int sliderDragXPause = 0; // Horizontal dragging offset
 
     // --- End Pause Menu UI ---
-
+    std::vector<SDL_Rect> getBuffButtonRects();
     // Helper function for pause layout (optional, can do in render/handleEvents)
     void calculatePauseLayout();
     SDL_Texture* renderPauseText(const std::string& text, SDL_Color color); // Helper

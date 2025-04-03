@@ -73,20 +73,18 @@ Game::~Game(){
 
 void Game::init(const char *title, int xpos, int ypos, int width, int height, bool fullscreen){
     // Use the renderer provided by main.cpp
+    // Use the renderer provided by main.cpp
     if (Game::renderer) {
         std::cout << "Game::init - Using existing Renderer" << std::endl;
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        // Initialize UI manager
-        delete ui; // Delete previous instance if any
-        ui = new UIManager(renderer);
-        if (ui) ui->init();
+        // NOTE: UI Manager initialization moved down
     } else {
-         std::cerr << "Error: Game::init called but Game::renderer is null!" << std::endl;
-         isRunning = false;
-         // Clean up potentially allocated members if init fails early
-         if(saveLoadManager) { delete saveLoadManager; saveLoadManager = nullptr; }
-         if(assets) { delete assets; assets = nullptr; }
-         return;
+        std::cerr << "Error: Game::init called but Game::renderer is null!" << std::endl;
+        isRunning = false;
+        // Clean up potentially allocated members if init fails early
+        if(saveLoadManager) { delete saveLoadManager; saveLoadManager = nullptr; }
+        if(assets) { delete assets; assets = nullptr; }
+        return;
     }
     currentState = GameState::Playing; // Start in playing state
     std::cout << "Game state initialized to Playing." << std::endl;
@@ -119,6 +117,24 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
       // --- ADDED: Load Menu SFX ---
     assets->AddSoundEffect("game_start", "assets/sound/start.wav");     // Assume path is correct
     assets->AddSoundEffect("button_click", "assets/sound/buttonclick.wav"); // Assume path is correct
+    // --- Buff Icon
+    assets->AddTexture("weapon_icon", "assets/menu/weaponicon.png");
+    assets->AddTexture("fire_icon", "assets/menu/fireicon.png");
+    assets->AddTexture("star_icon", "assets/menu/staricon.png");
+    assets->AddTexture("health_icon", "assets/menu/healthicon.png");
+    assets->AddTexture("lifesteal_icon", "assets/menu/lifestealicon.png"); // Assuming path
+    assets->AddTexture("default_buff_icon", "assets/menu/defaultbufficon.png"); // Fallback icon
+// -------------------------------------
+    // --- Initialize UI Manager AFTER loading assets --- <<<<<<< MOVED HERE
+    delete ui; // Delete previous instance if any
+    ui = new UIManager(renderer);
+    if (ui) {
+            ui->init(); // Now ui->init() runs AFTER AddTexture for icons
+    } else {
+            std::cerr << "Error: Failed to create UIManager!" << std::endl;
+            // Handle error, maybe set isRunning = false; return;
+    }
+        // --- End UI Manager Init ---
     // --- Create Player Entity Structure ---
     playerEntity = &manager.addEntity();
 
@@ -316,63 +332,54 @@ void Game::handleEvents() {
             break; // End Playing state handling
 
             case GameState::Paused:
-            // --- ADDED: Log entry into Paused state handling ---
-            // std::cout << "DEBUG: handleEvents in Paused state." << std::endl; // Can be noisy
-
-            // Handle buff selection input if active while paused
             if (isInBuffSelection) {
-                 // --- ADDED: Log entry into Buff Selection block ---
-                 std::cout << "DEBUG: Paused state + isInBuffSelection = true. Checking input..." << std::endl;
-
                  if (Game::event.type == SDL_MOUSEBUTTONDOWN) {
-                      // --- ADDED: Log Mouse Down Event ---
-                      std::cout << "DEBUG: Buff Selection - MOUSEBUTTONDOWN received." << std::endl;
+                     std::cout << "DEBUG: Buff Selection - MOUSEBUTTONDOWN received." << std::endl; // Existing log
                      if (Game::event.button.button == SDL_BUTTON_LEFT) {
-                         int mouseX_Screen, mouseY_Screen;
-                         SDL_GetMouseState(&mouseX_Screen, &mouseY_Screen);
-                         std::cout << "DEBUG: Buff Selection - Left Click at (" << mouseX_Screen << ", " << mouseY_Screen << ")" << std::endl;
+                         int mouseX_Screen_Buff, mouseY_Screen_Buff; // Use specific names
+                         SDL_GetMouseState(&mouseX_Screen_Buff, &mouseY_Screen_Buff);
 
-                         // Calculate button layout again (ensure this matches UI::renderBuffSelectionUI)
-                         // TODO: Move this calculation to a helper or store rects if layout doesn't change
-                         int totalButtonWidth = 4 * 180 + 3 * 20;
-                         int startX = (WINDOW_WIDTH - totalButtonWidth) / 2;
-                         int buttonY = WINDOW_HEIGHT / 2 - 50;
-                         int buttonW = 180;
-                         int buttonH = 100;
-                         int gap = 20;
+                         // --- Log Mouse Coords ---
+                         std::cout << "DEBUG: Checking Click at Screen Coords: (" << mouseX_Screen_Buff << ", " << mouseY_Screen_Buff << ")" << std::endl;
+                         // ------------------------
 
-                          for (size_t i = 0; i < currentBuffOptions.size() && i < 4; ++i) {
-                             SDL_Rect buttonRect = {startX + static_cast<int>(i) * (buttonW + gap), buttonY, buttonW, buttonH};
-                             // --- ADDED: Log Button Rect Check ---
-                             std::cout << "DEBUG: Checking Button " << i << " Rect: x=" << buttonRect.x << " y=" << buttonRect.y << " w=" << buttonRect.w << " h=" << buttonRect.h << std::endl;
-                             if (ui && ui->isMouseInside(mouseX_Screen, mouseY_Screen, buttonRect)) {
-                                 // --- ADDED: Log Button Hit ---
-                                 std::cout << "DEBUG: Click HIT on Button " << i << "! Applying buff..." << std::endl;
+                         std::vector<SDL_Rect> buffButtonRects = getBuffButtonRects();
+
+                         for (size_t i = 0; i < buffButtonRects.size() && i < currentBuffOptions.size(); ++i) {
+                             SDL_Rect buttonRect = buffButtonRects[i]; // Use the calculated rect
+
+                             // --- Log Button Rect ---
+                             std::cout << "DEBUG: Checking Button [" << i << "] Rect: x=" << buttonRect.x
+                                       << ", y=" << buttonRect.y << ", w=" << buttonRect.w << ", h=" << buttonRect.h << std::endl;
+                             // -----------------------
+
+                             if (ui && ui->isMouseInside(mouseX_Screen_Buff, mouseY_Screen_Buff, buttonRect)) {
+                                 std::cout << "DEBUG: Click HIT on Button " << i << "! Applying buff..." << std::endl; // Existing log
                                  applySelectedBuff(static_cast<int>(i));
-                                 return; // Buff applied and exited, consume event
+                                 return;
                              }
-                          }
-                          // --- ADDED: Log if click missed all buttons ---
-                          std::cout << "DEBUG: Left click did not hit any buff buttons." << std::endl;
+                         }
+                         // Add log if no button was hit after checking all
+                         std::cout << "DEBUG: Click did not register inside any calculated button rect." << std::endl;
                      }
                  } else if (Game::event.type == SDL_KEYDOWN) {
                       // --- ADDED: Log Key Down Event ---
-                      std::cout << "DEBUG: Buff Selection - KEYDOWN received. Key: " << SDL_GetKeyName(Game::event.key.keysym.sym) << std::endl;
+                    //   std::cout << "DEBUG: Buff Selection - KEYDOWN received. Key: " << SDL_GetKeyName(Game::event.key.keysym.sym) << std::endl;
                      switch (Game::event.key.keysym.sym) {
                          case SDLK_1:
-                              std::cout << "DEBUG: Key '1' pressed. Applying buff 0..." << std::endl;
+                            //   std::cout << "DEBUG: Key '1' pressed. Applying buff 0..." << std::endl;
                               applySelectedBuff(0); return;
                          case SDLK_2:
-                              std::cout << "DEBUG: Key '2' pressed. Applying buff 1..." << std::endl;
+                            //   std::cout << "DEBUG: Key '2' pressed. Applying buff 1..." << std::endl;
                               applySelectedBuff(1); return;
                          case SDLK_3:
-                              std::cout << "DEBUG: Key '3' pressed. Applying buff 2..." << std::endl;
+                            //   std::cout << "DEBUG: Key '3' pressed. Applying buff 2..." << std::endl;
                               applySelectedBuff(2); return;
                          case SDLK_4:
-                              std::cout << "DEBUG: Key '4' pressed. Applying buff 3..." << std::endl;
+                            //   std::cout << "DEBUG: Key '4' pressed. Applying buff 3..." << std::endl;
                               applySelectedBuff(3); return;
                          default:
-                              std::cout << "DEBUG: Key pressed is not 1-4." << std::endl;
+                            //   std::cout << "DEBUG: Key pressed is not 1-4." << std::endl;
                               break; // Don't apply buff for other keys
                      }
                  } else {
@@ -640,7 +647,7 @@ void Game::spawnEnemy() {
     enemy.addComponent<EnemyAIComponent>(
         5000, // Detection range
         selectedEnemy.speed, // Movement speed
-        &playerEntity->getComponent<ColliderComponent>().position, // Player position ptr
+        &playerEntity->getComponent<TransformComponent>().position,
         selectedEnemy.damage + (playerManager ? playerManager->getLevel() : 0), // Contact damage (scales with player level)
         selectedEnemy.experience, // Experience value
         playerEntity // Player entity ptr
@@ -810,7 +817,7 @@ void Game::update(){
         if (playerEntity->hasComponent<SoundComponent>()) {
             // Ensure the sound component exists before trying to play
             playerEntity->getComponent<SoundComponent>().playSoundEffect("gameover_sfx");
-            std::cout << "DEBUG: Played gameover_sfx" << std::endl; // Optional debug log
+            // std::cout << "DEBUG: Played gameover_sfx" << std::endl; // Optional debug log
         } else {
              std::cerr << "Warning: Player has no SoundComponent to play game over SFX!" << std::endl;
         }
@@ -960,6 +967,8 @@ void Game::render(){
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
 
+    int windowWidth, windowHeight;
+    SDL_GetRendererOutputSize(renderer, &windowWidth, &windowHeight);
     // --- Render based on state ---
     // Render game world elements first, potentially dimmed if Paused or GameOver
     if (currentState == GameState::Playing || currentState == GameState::Paused || currentState == GameState::GameOver) {
@@ -1006,8 +1015,8 @@ void Game::render(){
              // Render Buff Selection UI OR Pause Menu UI on top of overlay
              if (isInBuffSelection && ui) {
                   // Render Buff Selection UI if active
-                  std::cout << "DEBUG: Render - Rendering Buff Selection UI" << std::endl;
-                  ui->renderBuffSelectionUI(currentBuffOptions);
+                //   std::cout << "DEBUG: Render - Rendering Buff Selection UI" << std::endl;
+                  ui->renderBuffSelectionUI(currentBuffOptions, windowWidth, windowHeight);
              } else {
                   // Render Pause Menu if not in buff selection
                 //   std::cout << "DEBUG: Render - Rendering Pause Menu UI" << std::endl;
@@ -1511,4 +1520,57 @@ int Game::getMusicVolume() { // Now static
 
 int Game::getSfxVolume() { // Now static
     return sfxVolume;
+}
+
+// Helper function to get current buff button rectangles (points to the colored boxes)
+// Replace the entire Game::getBuffButtonRects function in game.cpp with this:
+// Helper function to get current buff button rectangles (points to the colored boxes)
+std::vector<SDL_Rect> Game::getBuffButtonRects() {
+    std::vector<SDL_Rect> rects;
+    if (!renderer) return rects; // Need renderer for size
+
+    int windowWidth, windowHeight;
+    SDL_GetRendererOutputSize(renderer, &windowWidth, &windowHeight);
+
+    // Replicate layout calculation logic from UIManager::renderBuffSelectionUI
+    const int numButtons = std::min((int)currentBuffOptions.size(), 4);
+    if (numButtons == 0) return rects;
+
+    // Define base sizes and padding (MUST MATCH renderBuffSelectionUI)
+    const int refWidth = 800;
+    const int refHeight = 600;
+    const int baseIconSize = 48; // MUST MATCH the value in renderBuffSelectionUI
+    const int baseBoxW = 180;
+    const int baseBoxH = 100;
+    const int baseGap = 25;
+    const int baseIconOffsetY = -100; // Y position for icons (relative to center)
+    // Note: baseBoxOffsetY calculation depends on iconDrawSize below
+
+    // Calculate scale factors (MUST MATCH renderBuffSelectionUI)
+    float scaleX = static_cast<float>(windowWidth) / refWidth;
+    float scaleY = static_cast<float>(windowHeight) / refHeight;
+    float scaleFactor = std::min(scaleX, scaleY);
+
+    // --- Calculate sizes needed for positioning (MUST MATCH renderBuffSelectionUI) ---
+    int iconDrawSize = std::max(32, static_cast<int>(baseIconSize * scaleFactor)); // Calculate the square size
+    int boxW = std::max(100, static_cast<int>(baseBoxW * scaleFactor));
+    int boxH = std::max(60, static_cast<int>(baseBoxH * scaleFactor));
+    int gap = std::max(15, static_cast<int>(baseGap * scaleFactor));
+    int iconOffsetY = windowHeight / 2 + static_cast<int>(baseIconOffsetY * scaleY);
+    // Calculate boxOffsetY using the square iconDrawSize
+    int boxOffsetY = iconOffsetY + iconDrawSize + std::max(3, static_cast<int>(5 * scaleFactor));
+    // --- End size calculations ---
+
+    // Calculate total width needed and starting position for centering
+    int totalWidth = numButtons * boxW + (numButtons - 1) * gap;
+    int startX = (windowWidth - totalWidth) / 2;
+
+    rects.resize(numButtons);
+    for (int i = 0; i < numButtons; ++i) {
+        // Calculate the rectangle for the COLORED box area (used for clicking)
+        // Its Y position depends on the iconDrawSize calculation above
+        rects[i] = {startX + i * (boxW + gap), boxOffsetY, boxW, boxH};
+    }
+
+    return rects; // Returns rects for the colored boxes
 }

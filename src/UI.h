@@ -23,6 +23,14 @@ private: // Keep member variables private
     const int UI_PADDING = 20;
     const int STAT_LINE_HEIGHT = 24;
 
+
+    // --- Buff Colors ---
+    const SDL_Color healthBuffColor = {0, 255, 0, 255};       // Green
+    const SDL_Color starSpellBuffColor = {255, 255, 0, 255}; // Yellow
+    const SDL_Color fireSpellBuffColor = {255, 0, 0, 255};   // Red
+    const SDL_Color weaponBuffColor = {0, 0, 255, 255};      // Blue
+    const SDL_Color lifeStealBuffColor = {128, 128, 128, 255}; // Gray
+    const SDL_Color defaultBuffColor = {50, 50, 100, 255};   // Default blueish gray
     // Cache for text textures (Keep private)
     struct TextCache {
         std::string text;
@@ -40,6 +48,12 @@ private: // Keep member variables private
     // Simple UI fallback (Keep private if only called by public renderUI)
     void renderSimpleUI(Player* player);
 
+    SDL_Texture* weaponIconTex = nullptr;
+    SDL_Texture* fireIconTex = nullptr;
+    SDL_Texture* starIconTex = nullptr;
+    SDL_Texture* healthIconTex = nullptr;
+    SDL_Texture* lifestealIconTex = nullptr;
+    SDL_Texture* defaultBuffIconTex = nullptr;
 
 public: // Public interface
     UIManager(SDL_Renderer* renderer);
@@ -65,9 +79,9 @@ public: // Public interface
 
 
     // --- Buff Selection UI ---
-    void renderBuffSelectionUI(const std::vector<BuffInfo>& buffs);
+    void renderBuffSelectionUI(const std::vector<BuffInfo>& buffs, int windowWidth, int windowHeight);
     bool isMouseInside(int mouseX, int mouseY, const SDL_Rect& rect);
-
+    void drawTextWithOutline(const std::string& text, int x, int y, SDL_Color textColor, SDL_Color outlineColor, int outlineWidth = 1, TTF_Font* fontToUse = nullptr);
     // --- Cache Management ---
     void clearCache();
 

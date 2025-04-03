@@ -69,6 +69,21 @@ public:
         if (!transform || !collider || !playerPosition || !playerEntity ) return;
         if (!playerEntity->isActive() || !playerEntity->hasComponent<ColliderComponent>() || !playerEntity->hasComponent<HealthComponent>()) return;
 
+
+        // --- Get Player's ACTUAL Transform position (if available) ---
+        Vector2D playerActualPos;
+        if(playerEntity && playerEntity->hasComponent<TransformComponent>()) {
+            playerActualPos = playerEntity->getComponent<TransformComponent>().position;
+            // Optional: Adjust to player center if needed
+            // playerActualPos.x += playerEntity->getComponent<TransformComponent>().width * playerEntity->getComponent<TransformComponent>().scale / 2.0f;
+            // playerActualPos.y += playerEntity->getComponent<TransformComponent>().height * playerEntity->getComponent<TransformComponent>().scale / 2.0f;
+        } else {
+            // Fallback or error handling if player transform is missing
+            playerActualPos = *playerPosition; // Use the old pointer as fallback? Risky.
+            // Or maybe stop movement: transform->velocity.Zero(); return;
+        }
+        // --- End Get Player Position ---
+
         // Update detection rect position
         detectionRect.x = collider->collider.x - (detectionRect.w - collider->collider.w) / 2;
         detectionRect.y = collider->collider.y - (detectionRect.h - collider->collider.h) / 2;
@@ -88,12 +103,14 @@ public:
         }
 
         // --- Movement AI ---
-        SDL_Rect playerRectForDetection = playerColRect;
-        if (Collision::AABB(playerRectForDetection, detectionRect)) {
-            Vector2D targetPosition = *playerPosition;
-            Vector2D direction = targetPosition - transform->position;
-            if (direction.x != 0.0f || direction.y != 0.0f) { direction = direction.Normalize(); }
+        SDL_Rect playerRect = {static_cast<int>(playerPosition->x), static_cast<int>(playerPosition->y), 32, 32};
+        if (Collision::AABB(playerRect, detectionRect)) {
+            Vector2D direction = playerActualPos - transform->position;
+            direction = direction.Normalize();
+
             transform->velocity = direction * speed;
+            
+            // Update sprite flip based on movement direction (if sprite exists)
             if (sprite) {
                 // Flip sprite based on horizontal movement
                 if (transform->velocity.x < 0) {
@@ -105,6 +122,9 @@ public:
         } else {
             transform->velocity.Zero();
         }
+
+        transform->position.x += transform->velocity.x;
+        transform->position.y += transform->velocity.y;
     }
 
     void draw() override {
