@@ -1,121 +1,93 @@
-#include "Player.h"
+#include "Player.h" // Include the header file
 #include <iostream>
-#include "../game.h" // Include game.h for Game::instance access if needed
+#include <algorithm> // For std::max
+#include "../game.h" // Include game.h for Game::instance if needed
+#include "Components.h" // Include Components.h for component access
 
-// --- addExperience Implementation ---
+// --- Constructor Definition ---
+Player::Player(Entity* entity) : playerEntity(entity) { // Definition starts here
+    if (!playerEntity) {
+        std::cerr << "FATAL ERROR: Player created with null entity!" << std::endl;
+        // Consider throwing an exception
+    }
+    // Initialize stats
+    level = 1;
+    experience = 0;
+    experienceToNextLevel = 10;
+    enemiesDefeated = 0;
+    lifestealPercentage = 0.0f;
+} // Definition ends here
+
+// --- addExperience ---
 void Player::addExperience(int exp) {
+    if (exp <= 0) return;
     experience += exp;
-
-    // Check if player has enough experience to level up
-    while (experienceToNextLevel > 0 && experience >= experienceToNextLevel) { // Added check for expToNext > 0
-        // Level up!
+    while (experienceToNextLevel > 0 && experience >= experienceToNextLevel) {
         experience -= experienceToNextLevel;
         levelUp();
+        // if (level >= 999) break; // Optional level cap
     }
-     // Ensure experience doesn't somehow become negative after level up subtraction
      if (experience < 0) experience = 0;
 }
 
-// --- levelUp Implementation ---
-void Player::levelUp() {
+// --- levelUp ---
+void Player::levelUp() { // <<<< START OF FUNCTION BODY {
     level++;
+    experienceToNextLevel = level * 10; // Or your formula
 
-    // Calculate new experience required for next level (increases with each level)
-    experienceToNextLevel = level * 10; // Consider a more scaling formula if desired
+    std::cout << "Player Leveled Up to Level " << level << "! Next level requires " << experienceToNextLevel << " EXP." << std::endl;
 
-    std::cout << "Player Leveled Up to Level " << level << "! Next level requires " << experienceToNextLevel << " EXP." << std::endl; // Feedback
-
-
-    // Upgrade stats
-    if (playerEntity->hasComponent<HealthComponent>()) {
-        auto& health = playerEntity->getComponent<HealthComponent>();
-        int maxHealthIncrease = level * 5; // 5 health per level
-        health.setMaxHealth(health.getMaxHealth() + maxHealthIncrease);
-        health.heal(maxHealthIncrease); // Heal by the amount increased
-    }
-
-    // --- Trigger Buff Selection ---
-    // Trigger every level up for now, adjust frequency if needed (e.g., level % 2 == 0)
-    if (Game::instance) { // Check if Game instance exists
-         Game::instance->enterBuffSelection(); // Call function in Game class
+    // --- Trigger Spawn Pool Update ---  <<<< MAKE SURE THIS IS INSIDE THE FUNCTION
+    if (Game::instance) {
+        Game::instance->updateSpawnPoolAndWeights(); // This call should be fine here
     } else {
-         std::cerr << "Player::levelUp - Game::instance is null, cannot enter buff selection!" << std::endl;
+        std::cerr << "Warning: Game::instance is null in Player::levelUp. Cannot update spawn pool." << std::endl;
+    }
+    // --- End Trigger ---
+
+    // Remove or comment out automatic health increase if desired
+    // if (playerEntity && playerEntity->hasComponent<HealthComponent>()) { ... }
+
+    // Buff selection logic
+    if (level % 2 == 0) {
+        if (Game::instance) {
+            //  std::cout << "  >> Triggering Buff Selection Screen (Level " << level << ")" << std::endl;
+             Game::instance->enterBuffSelection(); // Trigger the choice screen
+        } else {
+            //  std::cerr << "Player::levelUp - Game::instance is null, cannot enter buff selection!" << std::endl;
+        }
+    } else {
+        // std::cout << "  >> Skipping Buff Selection Screen (Level " << level << ")" << std::endl;
+    }
+
+}
+
+
+// --- Getters ---
+// (Implementations for getHealth, getMaxHealth, etc. using playerEntity->getComponent...)
+int Player::getHealth() const { if (playerEntity && playerEntity->hasComponent<HealthComponent>()) return playerEntity->getComponent<HealthComponent>().getHealth(); return 0; }
+int Player::getMaxHealth() const { if (playerEntity && playerEntity->hasComponent<HealthComponent>()) return playerEntity->getComponent<HealthComponent>().getMaxHealth(); return 0; }
+int Player::getDamage() const { if (playerEntity && playerEntity->hasComponent<WeaponComponent>()) return playerEntity->getComponent<WeaponComponent>().getDamage(); return 0; }
+float Player::getFireRate() const { if (playerEntity && playerEntity->hasComponent<WeaponComponent>()) { int fr = playerEntity->getComponent<WeaponComponent>().getFireRate(); return (fr > 0) ? 1000.0f / fr : 0.0f; } return 0.0f; }
+int Player::getProjectileCount() const { if (playerEntity && playerEntity->hasComponent<WeaponComponent>()) return playerEntity->getComponent<WeaponComponent>().getProjectileCount(); return 0; }
+float Player::getSpeed() const { if (playerEntity && playerEntity->hasComponent<TransformComponent>()) return playerSpeed; /* Use playerSpeed constant from constants.h */ return 0.0f; } // Assuming playerSpeed is defined elsewhere
+Vector2D Player::getPosition() const { if (playerEntity && playerEntity->hasComponent<TransformComponent>()) return playerEntity->getComponent<TransformComponent>().position; return Vector2D(); }
+
+// --- heal method Definition ---
+void Player::heal(int amount) {
+    if (amount <= 0) return; // Ignore non-positive healing
+    // Check if the entity and component exist before using them
+    if (playerEntity && playerEntity->hasComponent<HealthComponent>()) {
+        playerEntity->getComponent<HealthComponent>().heal(amount); // Call the HealthComponent's heal method
+    } else {
+        std::cerr << "Warning: Player::heal called but playerEntity or HealthComponent is missing!" << std::endl;
     }
 }
 
 
-// --- Stat Getters (No changes needed) ---
-int Player::getHealth() const {
-    if (playerEntity->hasComponent<HealthComponent>()) {
-        return playerEntity->getComponent<HealthComponent>().getHealth();
-    }
-    return 0;
-}
-
-int Player::getMaxHealth() const {
-    if (playerEntity->hasComponent<HealthComponent>()) {
-        return playerEntity->getComponent<HealthComponent>().getMaxHealth();
-    }
-    return 0;
-}
-
-int Player::getDamage() const {
-    if (playerEntity->hasComponent<WeaponComponent>()) {
-        return playerEntity->getComponent<WeaponComponent>().damage;
-    }
-    return 0;
-}
-
-float Player::getFireRate() const {
-    if (playerEntity->hasComponent<WeaponComponent>()) {
-        // Convert from delay (ms) to shots per second
-         int fireRateMs = playerEntity->getComponent<WeaponComponent>().fireRate;
-         return (fireRateMs > 0) ? 1000.0f / fireRateMs : 0.0f; // Avoid division by zero
-    }
-    return 0.0f;
-}
-
-int Player::getProjectileCount() const {
-    if (playerEntity->hasComponent<WeaponComponent>()) {
-        return playerEntity->getComponent<WeaponComponent>().projectilesPerShot;
-    }
-    return 0;
-}
-
-float Player::getSpeed() const {
-    if (playerEntity->hasComponent<TransformComponent>()) {
-        return playerEntity->getComponent<TransformComponent>().speed;
-    }
-    return 0.0f;
-}
-
-Vector2D Player::getPosition() const {
-    if (playerEntity->hasComponent<TransformComponent>()) {
-        return playerEntity->getComponent<TransformComponent>().position;
-    }
-    return Vector2D(); // Return zero vector if no transform
-}
-
-// --- Implement Missing Setters ---
-
-void Player::setLevel(int newLevel) {
-    level = std::max(1, newLevel); // Ensure level doesn't go below 1
-    // Recalculate expToNext based on the new level if needed
-     experienceToNextLevel = level * 10; // Or use your scaling formula
-     std::cout << "Player level set to: " << level << ", next level EXP: " << experienceToNextLevel << std::endl;
-}
-
-void Player::setExperience(int newExp) {
-    experience = std::max(0, newExp); // Ensure experience doesn't go below 0
-     std::cout << "Player experience set to: " << experience << std::endl;
-}
-
-void Player::setExperienceToNextLevel(int newExpToNext) {
-    experienceToNextLevel = std::max(1, newExpToNext); // Ensure required EXP is at least 1
-     std::cout << "Player EXP to next level set to: " << experienceToNextLevel << std::endl;
-}
-
-void Player::setEnemiesDefeated(int count) {
-    enemiesDefeated = std::max(0, count); // Ensure count doesn't go below 0
-     std::cout << "Player enemies defeated set to: " << enemiesDefeated << std::endl;
-}
+// --- Setters ---
+// (Implementations for setLevel, setExperience, etc.)
+void Player::setLevel(int newLevel) { level = std::max(1, newLevel); experienceToNextLevel = level * 10; }
+void Player::setExperience(int newExp) { experience = std::max(0, newExp); }
+void Player::setExperienceToNextLevel(int newExpToNext) { experienceToNextLevel = std::max(1, newExpToNext); }
+void Player::setEnemiesDefeated(int count) { enemiesDefeated = std::max(0, count); }

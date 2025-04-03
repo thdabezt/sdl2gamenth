@@ -106,11 +106,18 @@ void WeaponComponent::shoot() {
         }
     }
 }
+// In WeaponComponent.cpp
+void WeaponComponent::decreaseFireRatePercentage(float percent) {
+    if (percent <= 0) return;
+    float multiplier = 1.0f - (percent / 100.0f);
+    fireRate = static_cast<int>(fireRate * multiplier);
+    fireRate = std::max(10, fireRate); // Ensure a minimum fire rate (e.g., 10ms delay)
+}
 
 void WeaponComponent::createProjectile(Vector2D position, Vector2D velocity) {
     // if (!initialized) return; // CreateProjectile is internal helper, shoot checks initialized
      if (Game::instance && Game::instance->assets) {
-         Game::instance->assets->CreateProjectile(position, velocity, projectileRange, damage, projectileSize, projectileTexture, projectilePierce);
+         Game::instance->assets->CreateProjectile(position, velocity, damage, projectileSize, projectileTexture, projectilePierce);
      } else {
           std::cerr << "Error in WeaponComponent::createProjectile: Game instance or assets pointer is null!" << std::endl;
      }

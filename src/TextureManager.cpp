@@ -25,8 +25,15 @@ SDL_Texture* TextureManager::LoadTexture(const char* fileName) {
     return tex;
 }
 
-void TextureManager::Draw(SDL_Texture *tex, SDL_Rect src, SDL_Rect dest, SDL_RendererFlip flip) {
-    // Ensure renderer and texture are valid before drawing (basic check)
+void TextureManager::Draw(SDL_Texture *tex, SDL_Rect src, SDL_Rect dest, double angle, SDL_RendererFlip flip) { // Added angle parameter
     if (!Game::renderer || !tex) return;
-    SDL_RenderCopyEx(Game::renderer, tex, &src, &dest, NULL, NULL, flip);
+    // Pass the angle to SDL_RenderCopyEx
+    SDL_RenderCopyEx(Game::renderer, tex, &src, &dest, angle, NULL, flip);
+}
+
+
+void TextureManager::Draw(SDL_Texture *tex, SDL_Rect src, SDL_Rect dest, SDL_RendererFlip flip) {
+    if (!Game::renderer || !tex) return;
+    // Call SDL_RenderCopyEx with NULL (or 0.0) for the angle when no rotation is needed
+    SDL_RenderCopyEx(Game::renderer, tex, &src, &dest, 0.0, NULL, flip);
 }

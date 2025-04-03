@@ -129,7 +129,7 @@ public:
 
     void draw() override {
         // if (!initialized) return; // Optional check
-        bool debug = true;
+        bool debug = false;
         if (!debug || !Game::renderer || !collider) return;
 
         SDL_SetRenderDrawColor(Game::renderer, 255, 255, 255, 255);

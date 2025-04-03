@@ -16,7 +16,7 @@ private:
 
     bool playMusicOnStart = false;
     int musicLoops = -1; // -1 for infinite looping
-
+    
 public:
     SoundComponent() = default;
 
@@ -74,14 +74,14 @@ public:
                     //           << "' on channel " << channel << "." << std::endl;
                     // Optional: Set volume on the specific channel *after* playing,
                     // if Mix_Volume(-1, ...) isn't working as expected.
-                    // Mix_Volume(channel, Game::instance->getSfxVolume());
+                    Mix_Volume(channel, Game::instance->getSfxVolume());
                 }
     
             } else {
                 // std::cerr << "SoundComponent: Could not get sound effect chunk with asset ID: " << soundEffectIDs[internalName] << std::endl;
             }
         } else {
-            std::cerr << "SoundComponent: No sound effect registered with internal name: " << internalName << std::endl;
+            // std::cerr << "SoundComponent: No sound effect registered with internal name: " << internalName << std::endl;
         }
         return channel; // Return the channel used or -1 on failure
     }

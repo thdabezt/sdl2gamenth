@@ -13,7 +13,6 @@ class ProjectileComponent : public Component {
 private:
     TransformComponent *transform = nullptr; // Pointer now checked
     Vector2D startPos;
-    int range = 0;
     int damage = 0;
     Vector2D velocity;
     int maxPierce = 1;
@@ -22,8 +21,8 @@ private:
     bool initialized = false; // <<< ADD Initialization Flag
 
 public:
-    ProjectileComponent(int rng, int dmg, Vector2D vel, int pierce = 1)
-        : range(rng), damage(dmg), velocity(vel), maxPierce(pierce > 0 ? pierce : 1) {}
+    ProjectileComponent( int dmg, Vector2D vel, int pierce = 1)
+        :  damage(dmg), velocity(vel), maxPierce(pierce > 0 ? pierce : 1) {}
 
     ~ProjectileComponent() {}
 
@@ -60,13 +59,7 @@ public:
         transform->position.x += velocity.x;
         transform->position.y += velocity.y;
 
-        if (range > 0) {
-            float distSq = Vector2D::DistanceSq(transform->position, startPos);
-             if (distSq > (static_cast<float>(range) * range)) {
-                 if (entity) entity->destroy();
-                 return;
-             }
-        }
+        
 
         // Check out-of-bounds relative to camera + buffer
         if (transform->position.x > Game::camera.x + Game::camera.w + 100 ||
@@ -78,4 +71,5 @@ public:
              return;
         }
     }
+    
 };

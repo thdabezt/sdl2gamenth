@@ -2,7 +2,6 @@
 #include "game.h"          // Include game.h for Game members & components
 #include "ECS/Components.h"   // Include for component access (Health, Transform, etc.)
 #include "ECS/Player.h"       // Include for Player class
-#include "ECS/SpellComponent.h" // Include full definition for spell loading
 #include <fstream>
 #include <sstream>
 #include <filesystem>         // Required for creating directories (C++17)
@@ -98,10 +97,10 @@ void SaveLoadManager::saveGameState(const std::string& filename) {
     if (playerEntity->hasComponent<WeaponComponent>()) {
          auto& weapon = playerEntity->getComponent<WeaponComponent>();
          saveFile << "WeaponTag:" << weapon.tag << std::endl;
+         saveFile << "WeaponLevel:" << weapon.getLevel() << std::endl; // --- SAVE LEVEL ---
          saveFile << "WeaponDamage:" << weapon.damage << std::endl;
          saveFile << "WeaponFireRate:" << weapon.fireRate << std::endl;
          saveFile << "WeaponProjSpeed:" << weapon.projectileSpeed << std::endl;
-         saveFile << "WeaponProjRange:" << weapon.projectileRange << std::endl;
          saveFile << "WeaponSpread:" << weapon.spreadAngle << std::endl;
          saveFile << "WeaponProjCount:" << weapon.projectilesPerShot << std::endl;
          saveFile << "WeaponProjSize:" << weapon.projectileSize << std::endl;
@@ -117,8 +116,8 @@ void SaveLoadManager::saveGameState(const std::string& filename) {
         if (SpellComponent* spellComp = dynamic_cast<SpellComponent*>(compPtr.get())) {
             saveFile << "SpellIndex:" << spellIndex << std::endl;
             saveFile << "SpellTag:" << spellComp->tag << std::endl;
+            saveFile << "SpellLevel:" << spellComp->getLevel() << std::endl; // --- SAVE LEVEL ---
             saveFile << "SpellDamage:" << spellComp->damage << std::endl;
-            saveFile << "SpellCooldown:" << spellComp->cooldown << std::endl;
             saveFile << "SpellProjSpeed:" << spellComp->projectileSpeed << std::endl;
             saveFile << "SpellProjCount:" << spellComp->projectilesPerCast << std::endl;
             saveFile << "SpellProjSize:" << spellComp->projectileSize << std::endl;
@@ -218,10 +217,10 @@ bool SaveLoadManager::loadGameState(const std::string& filename) {
 
             // --- Load Weapon Stats ---
             else if (key == "WeaponTag" && playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().tag = value;
+            else if (key == "WeaponLevel" && playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().setLevel(std::stoi(value)); // --- LOAD LEVEL ---
             else if (key == "WeaponDamage" && playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().damage = std::stoi(value);
             else if (key == "WeaponFireRate" && playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().fireRate = std::stoi(value);
             else if (key == "WeaponProjSpeed" && playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().projectileSpeed = std::stof(value);
-            else if (key == "WeaponProjRange" && playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().projectileRange = std::stoi(value);
             else if (key == "WeaponSpread" && playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().spreadAngle = std::stof(value);
             else if (key == "WeaponProjCount" && playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().projectilesPerShot = std::stoi(value);
             else if (key == "WeaponProjSize" && playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().projectileSize = std::stoi(value);
@@ -237,13 +236,13 @@ bool SaveLoadManager::loadGameState(const std::string& filename) {
                  if (!currentSpell) continue;
 
                  if (key == "SpellTag") currentSpell->tag = value;
+                 else if (key == "SpellLevel") currentSpell->setLevel(std::stoi(value)); // --- LOAD LEVEL ---
                  else if (key == "SpellDamage") currentSpell->damage = std::stoi(value);
                  else if (key == "SpellCooldown") currentSpell->cooldown = std::stoi(value);
                  else if (key == "SpellProjSpeed") currentSpell->projectileSpeed = std::stof(value);
                  else if (key == "SpellProjCount") currentSpell->projectilesPerCast = std::stoi(value);
                  else if (key == "SpellProjSize") currentSpell->projectileSize = std::stoi(value);
                  else if (key == "SpellProjTexture") currentSpell->projectileTexture = value;
-                 else if (key == "SpellDuration") currentSpell->duration = std::stoi(value);
                  else if (key == "SpellTrajectory") currentSpell->trajectoryMode = static_cast<SpellTrajectory>(std::stoi(value));
                  else if (key == "SpellSpiralGrowth") currentSpell->spiralGrowthRate = std::stof(value);
                  else if (key == "SpellPierce") currentSpell->projectilePierce = std::stoi(value);

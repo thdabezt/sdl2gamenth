@@ -12,7 +12,7 @@ class AssetManager {
         ~AssetManager();
     
         // --- Update CreateProjectile signature ---
-        void CreateProjectile(Vector2D pos, Vector2D vel, int range, int damage, int size, std::string id, int pierce = 1); // Add pierce
+        void CreateProjectile(Vector2D pos, Vector2D vel,  int damage, int size, std::string id, int pierce = 1); // Add pierce
     
         void AddTexture(std::string id, const char* path);
         SDL_Texture* GetTexture(std::string id);

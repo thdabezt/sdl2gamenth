@@ -129,7 +129,7 @@ public:
     void draw() override {
         // if (!initialized) return; // Optional check
 
-        bool debug = true ;
+        bool debug = false ;
         if(!debug) return;
         if (!Game::renderer) return;
 

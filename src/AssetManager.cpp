@@ -9,12 +9,13 @@ AssetManager::AssetManager(Manager* Man) : manager(Man){
 AssetManager::~AssetManager(){
 
 }
-void AssetManager::CreateProjectile(Vector2D pos, Vector2D vel, int range, int damage, int size, std::string id, int pierce) { // Add pierce parameter
+void AssetManager::CreateProjectile(Vector2D pos, Vector2D vel, int damage, int size, std::string id, int pierce) { // Removed range
     auto& projectile(manager->addEntity());
     projectile.addComponent<TransformComponent>(pos.x, pos.y, size, size, 1);
     projectile.addComponent<SpriteComponent>(id);
-    projectile.addComponent<ProjectileComponent>(range, damage, vel, pierce); // Pass pierce here
-    projectile.addComponent<ColliderComponent>("projectile"); // Consider collider size relative to 'size'
+ 
+    projectile.addComponent<ProjectileComponent>(/* REMOVE range, */ damage, vel, pierce); // Remove range argument
+    projectile.addComponent<ColliderComponent>("projectile");
     projectile.addGroup(Game::groupProjectiles);
 }
 

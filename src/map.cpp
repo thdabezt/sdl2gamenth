@@ -69,7 +69,7 @@ void Map::LoadMap(std::string path, int sizeX, int sizeY, int griWidth, std::vec
             AddTile(srcX * tileSize, srcY * tileSize, x * scaledSize, y * scaledSize);
 
              // Store the position of '1' tiles (assuming '1' is designated spawn area)
-             if (tileCode == 1) {
+             if (tileCode == 10|| tileCode == 11 || tileCode == 12 || tileCode == 13) {
                  // --- UNCOMMENT and use the passed reference ---
                  outSpawnPoints.emplace_back(static_cast<float>(x * scaledSize), static_cast<float>(y * scaledSize));
              }
@@ -91,7 +91,7 @@ void Map::LoadMap(std::string path, int sizeX, int sizeY, int griWidth, std::vec
          while (std::getline(ss, value, ',')) {
               if (currentX >= sizeX) break;
              if (!mapData.empty() && currentY < mapData.size() && currentX < mapData[currentY].size()) {
-                  if (mapData[currentY][currentX] == 2) { // Check if this tile code was '2'
+                  if (mapData[currentY][currentX] == 6 || mapData[currentY][currentX] == 2 || mapData[currentY][currentX] == 4 || mapData[currentY][currentX] == 1 ||mapData[currentY][currentX] == 8 || mapData[currentY][currentX] == 3 || mapData[currentY][currentX] == 5) { // Check if this tile code was '2'
                       auto& tcol(manager_ref.addEntity());
                       tcol.addComponent<ColliderComponent>("terrain", currentX * scaledSize, currentY * scaledSize, scaledSize);
                       tcol.addGroup(Game::groupColliders);

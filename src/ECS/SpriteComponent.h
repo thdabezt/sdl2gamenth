@@ -30,7 +30,8 @@ public:
     SDL_Texture* getTexture() {
         return texture;
     }
-
+    double angle = 0.0; // Angle in degrees for rotation
+    float rotationSpeed = 180.0f; // Degrees per second (adjust as needed)
 
     int animIndex = 0;
 
@@ -122,6 +123,15 @@ public:
         destRect.y = static_cast<int>(transform->position.y) - Game::camera.y;
         destRect.w = transform->width * transform->scale;
         destRect.h = transform->height * transform->scale;
+
+        if (texture == Game::instance->assets->GetTexture("starproj")) { // Check if this is the star texture
+            // Assuming a fixed update rate (e.g., 60 FPS)
+            const float timeStep = 1.0f / 60.0f; // Or get actual delta time
+            angle += rotationSpeed * timeStep;
+            if (angle >= 360.0) angle -= 360.0; // Keep angle within 0-360
+        } else {
+            angle = 0.0; // Reset angle for non-rotating sprites
+        }
     }
 
     void draw() override {
@@ -144,8 +154,10 @@ public:
         }
 
         SDL_SetTextureColorMod(texture, currentTint.r, currentTint.g, currentTint.b);
-        TextureManager::Draw(texture, srcRect, destRect, spriteFlip);
+        TextureManager::Draw(texture, srcRect, destRect, angle, spriteFlip); // Pass the angle
+
         SDL_SetTextureColorMod(texture, 255, 255, 255); // Reset
+        
     }
 
     void Play(const char* animName){
