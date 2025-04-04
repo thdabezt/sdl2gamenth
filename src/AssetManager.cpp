@@ -13,8 +13,17 @@ void AssetManager::CreateProjectile(Vector2D pos, Vector2D vel, int damage, int 
     auto& projectile(manager->addEntity());
     projectile.addComponent<TransformComponent>(pos.x, pos.y, size, size, 1);
     projectile.addComponent<SpriteComponent>(id);
- 
-    projectile.addComponent<ProjectileComponent>(/* REMOVE range, */ damage, vel, pierce); // Remove range argument
+     // --- ADD ProjectileComponent and Set Spinning Flag ---
+    projectile.addComponent<ProjectileComponent>(damage, vel, pierce);
+     if (id == "boss_projectile") { // Check the asset ID
+         if (projectile.hasComponent<ProjectileComponent>()) {
+             projectile.getComponent<ProjectileComponent>().isSpinning = true; // Sets flag on the FIRST component
+             // --- DEBUG LOG ---
+             // std::cout << "[DEBUG] AssetManager: Set isSpinning=true for projectile with ID: " << id << std::endl;
+             // --- END DEBUG LOG ---
+         }
+     }
+     // --- END ---
     projectile.addComponent<ColliderComponent>("projectile");
     projectile.addGroup(Game::groupProjectiles);
 }

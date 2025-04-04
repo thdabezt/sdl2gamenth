@@ -36,7 +36,7 @@ SpellTag:star
 SpellDamage:5
 SpellCooldown:5000
 SpellProjSpeed:10.0
-SpellProjCount:1
+SpellProjCount:0
 SpellProjSize:38
 SpellProjTexture:starproj
 SpellDuration:3000

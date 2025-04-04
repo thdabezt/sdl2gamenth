@@ -12,4 +12,5 @@
 #include "SpellComponent.h" 
 #include "SoundComponent.h" // Add this line
 #include "ExpOrbComponent.h"
+#include "BossAIComponent.h" // Add this line
 // #include "EnemyAi.h"

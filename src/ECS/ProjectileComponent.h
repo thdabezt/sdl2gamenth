@@ -9,6 +9,8 @@
 #include <algorithm>
 #include "Components.h" // Include Components.h for TransformComponent definition
 
+
+
 class ProjectileComponent : public Component {
 private:
     TransformComponent *transform = nullptr; // Pointer now checked
@@ -21,6 +23,7 @@ private:
     bool initialized = false; // <<< ADD Initialization Flag
 
 public:
+    bool isSpinning = false; // <<< PUBLIC flag for spinning
     ProjectileComponent( int dmg, Vector2D vel, int pierce = 1)
         :  damage(dmg), velocity(vel), maxPierce(pierce > 0 ? pierce : 1) {}
 

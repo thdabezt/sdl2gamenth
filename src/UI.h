@@ -37,6 +37,13 @@ private: // Keep member variables private
     const SDL_Color lifeStealBuffColor = {128, 128, 128, 255}; // Gray
     const SDL_Color defaultBuffColor = {50, 50, 100, 255};   // Default blueish gray
     const SDL_Color maxHealthBuffColor = {0, 180, 0, 255}; // --- Dark Green ---
+
+    Entity* currentBossEntity = nullptr; // Pointer to the current boss
+    TTF_Font* bossHealthFont = nullptr; // Optional: Specific font for boss health
+
+    // Helper to render the boss health bar (Keep private)
+    void renderBossHealthBar();
+
     // Cache for text textures (Keep private)
     struct TextCache {
         std::string text;
@@ -96,4 +103,6 @@ private: // Keep member variables private
 
     // Cache Management (remain declared)
     void clearCache();
+
+    void setBossEntity(Entity* boss);
 };

@@ -56,8 +56,17 @@ void Player::levelUp() { // <<<< START OF FUNCTION BODY {
         } else {
             //  std::cerr << "Player::levelUp - Game::instance is null, cannot enter buff selection!" << std::endl;
         }
-    } else {
-        // std::cout << "  >> Skipping Buff Selection Screen (Level " << level << ")" << std::endl;
+    } 
+    if (level % 10 == 0) {
+        std::cout << "Level " << level << " reached! Spawning boss..." << std::endl;
+        if (Game::instance) {
+            // Replace the old function call:
+            // Game::instance->spawnBossNearPlayer();
+            // With the new one:
+            Game::instance->spawnBoss(); // <<< UPDATED Function Call
+        } else {
+            std::cerr << "Warning: Game::instance is null in Player::levelUp. Cannot spawn boss." << std::endl;
+        }
     }
 
 }

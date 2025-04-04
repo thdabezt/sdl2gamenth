@@ -573,14 +573,14 @@ void MenuScene::handleEvents(SDL_Event& event) {
                  // return;
              }
              // --- Check Slider Button Drag Start ---
-             else if (saveSlots.size() > visibleSlotsCount && SDL_PointInRect(&mousePoint, &bgmSliderButtonRect)) {
+             else if (SDL_PointInRect(&mousePoint, &bgmSliderButtonRect)) {
                  isDraggingBgmSlider = true;
                  sliderDragStartX = mouseX - bgmSliderButtonRect.x;
                  playClickSound = true; // Play sound on initial slider click
                  std::cout << "BGM Slider drag started." << std::endl;
                  // return;
              }
-              else if (saveSlots.size() > visibleSlotsCount && SDL_PointInRect(&mousePoint, &sfxSliderButtonRect)) {
+              else if (SDL_PointInRect(&mousePoint, &sfxSliderButtonRect)) {
                  isDraggingSfxSlider = true;
                  sliderDragStartX = mouseX - sfxSliderButtonRect.x;
                  playClickSound = true; // Play sound on initial slider click

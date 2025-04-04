@@ -25,6 +25,11 @@ UIManager::~UIManager() {
     if (largeFont) { TTF_CloseFont(largeFont); largeFont = nullptr; }
     if (uiFont) { TTF_CloseFont(uiFont); uiFont = nullptr; }
     if (uiHeaderFont) { TTF_CloseFont(uiHeaderFont); uiHeaderFont = nullptr; }
+
+    if (bossHealthFont && bossHealthFont != uiHeaderFont && bossHealthFont != largeFont) { // Avoid double-free
+        TTF_CloseFont(bossHealthFont);
+        bossHealthFont = nullptr;
+    }
     // Icon textures are managed by AssetManager, no need to destroy here
 }
 
@@ -56,6 +61,17 @@ void UIManager::init() {
         // Add checks here (if (icon == nullptr) cerr...) to ensure icons loaded
     } else {
         std::cerr << "Error in UIManager::init: Cannot load buff icons, Game instance or AssetManager is null!" << std::endl;
+    }
+
+
+    uiHeaderFont = TTF_OpenFont("assets/font.ttf", 14);
+    bossHealthFont = TTF_OpenFont("assets/font.ttf", 24); // Load a larger font for the boss bar
+
+    if (!bossHealthFont) {
+         std::cerr << "Failed to load boss health font! Using uiHeaderFont as fallback." << std::endl;
+         if(uiHeaderFont) bossHealthFont = uiHeaderFont; // Fallback
+         else if(largeFont) bossHealthFont = largeFont; // Further fallback
+         else std::cerr << "UI Warning: No suitable font for boss health bar!" << std::endl;
     }
 }
 
@@ -316,23 +332,27 @@ void UIManager::renderPlayerStats(Player* player, int& yPos) {
 
 // Main UI Rendering Function - Calls the specific renderers
 void UIManager::renderUI(Player* player) {
-    if (!player || !renderer) return; // Need player and renderer
+    if (!renderer) return; // Need renderer
+
+    // Render Boss Health Bar FIRST (at the top) if a boss exists
+    renderBossHealthBar();
+
+    // Render Player UI (only if player exists)
+    if (!player) return; // Stop if no player
 
     if (!hasFonts()) {
         renderSimpleUI(player); // Use fallback if fonts aren't loaded
         return;
     }
 
-    // Manage vertical layout using yPos
-    int currentY = UI_PADDING; // Start near the top
+    // Manage vertical layout using yPos for PLAYER UI ONLY
+    int currentY = UI_PADDING; // Start near the top FOR PLAYER UI
 
     renderPlayerHealthBar(player, currentY);
     renderExpBar(player, currentY);
     renderWeaponStats(player, currentY);
     renderSpellStats(player, currentY); // Call the new spell stats renderer
     renderPlayerStats(player, currentY);
-
-    // Add calls to render any other UI sections here, passing currentY
 }
 
 // Fallback Simple UI (if fonts fail)
@@ -474,109 +494,49 @@ void UIManager::renderBuffSelectionUI(const std::vector<BuffInfo>& buffs, int wi
         // --- End Box Drawing ---
 
 
-        // --- Text Drawing (3 Lines) ---
+        // --- Text Drawing (Handles Multi-line Description) ---
         int textWidth, textHeight;
-        // Use the smaller 'fontToUse' for the 3 lines of text
         int textBaseY = boxRect.y + boxRect.h / 8; // Fine-tune starting Y position inside box
         int lineSpacing = static_cast<int>(3 * scaleFactor); // Dynamic line spacing
         lineSpacing = std::max(1, lineSpacing); // Ensure at least 1px spacing
         int currentTextY = textBaseY;
         int textCenterX = boxRect.x + boxRect.w / 2; // Center text horizontally
-        SDL_Color line2Color = {210, 210, 210, 255}; // Lighter grey for verb
-        SDL_Color line3Color = {255, 255, 255, 255}; // White for effect
 
-        // --- Line 1: Buff Name ---
+        // Define colors (can be adjusted)
+        SDL_Color line1Color = {255, 255, 255, 255}; // White for buff name
+        SDL_Color line2Color = {210, 210, 210, 255}; // Lighter grey for second line
+        SDL_Color line3Color = {255, 255, 255, 255}; // White for third line
+
+        // --- Line 1: Buff Name (Always rendered) ---
         TTF_SizeText(fontToUse, currentBuff.name.c_str(), &textWidth, &textHeight);
-        // Adjust X to center based on actual text width
-        drawTextWithOutline(currentBuff.name, textCenterX - textWidth / 2, currentTextY, textColor, outlineColor, 1, fontToUse);
-        currentTextY += textHeight + lineSpacing;
+        drawTextWithOutline(currentBuff.name, textCenterX - textWidth / 2, currentTextY, line1Color, outlineColor, 1, fontToUse);
+        currentTextY += textHeight + lineSpacing; // Move Y position down for the next line
 
-        // --- Determine Line 2 (Verb) & Line 3 (Effect/Value) ---
+        // --- Line 2 & 3: Buff Description (Handle '\n') ---
         std::string line2Text = "";
         std::string line3Text = "";
-        std::stringstream ssEffect;
+        std::string fullDescription = currentBuff.description; // Get the full description string
 
-        switch (currentBuff.type) {
-             // Player Heals
-            case BuffType::PLAYER_HEAL_FLAT:
-                line2Text = "Restore"; ssEffect << (int)currentBuff.amount << " HP"; break;
-            case BuffType::PLAYER_HEAL_PERC_MAX:
-                line2Text = "Restore"; ssEffect << (int)currentBuff.amount << "% Max HP"; break;
-            case BuffType::PLAYER_HEAL_PERC_LOST:
-                line2Text = "Restore"; ssEffect << (int)currentBuff.amount << "% Lost HP"; break;
+        // Find the newline character
+        size_t newlinePos = fullDescription.find('\n');
 
-            // Player Max HP
-            case BuffType::PLAYER_MAX_HEALTH_FLAT:
-                line2Text = "Increase"; ssEffect << "+" << (int)currentBuff.amount << " Max HP"; break;
-            case BuffType::PLAYER_MAX_HEALTH_PERC_MAX:
-                line2Text = "Increase"; ssEffect << "+" << (int)currentBuff.amount << "% Max HP"; break;
-            case BuffType::PLAYER_MAX_HEALTH_PERC_CUR:
-                line2Text = "Increase Max HP by"; ssEffect << (int)currentBuff.amount << "% Current HP"; break;
-
-            // Lifesteal
-            case BuffType::PLAYER_LIFESTEAL:
-                line2Text = "Increase"; ssEffect << "+" << std::fixed << std::setprecision(1) << currentBuff.amount << "% Lifesteal"; break;
-
-            // Weapon Damage
-            case BuffType::WEAPON_DAMAGE_FLAT:
-                 line2Text = "Increase Damage"; ssEffect << "+" << (int)currentBuff.amount << "%"; break; // Show the percentage
-            case BuffType::WEAPON_DAMAGE_RAND_PERC:
-                line2Text = "Increase Damage";
-                if (Game::instance && Game::instance->playerManager && Game::instance->playerManager->getEntity().hasComponent<WeaponComponent>()) {
-                     int currentDmg = Game::instance->playerManager->getEntity().getComponent<WeaponComponent>().getDamage();
-                     if(currentDmg > 0) {
-                         int minInc = std::max(1, static_cast<int>(currentDmg * 0.01f)); int maxInc = std::max(1, static_cast<int>(currentDmg * 0.20f));
-                         ssEffect << "+" << minInc << "-" << maxInc << " (1-20%)";
-                     } else { ssEffect << "+(1-20)%"; }
-                } else { ssEffect << "+(1-20)%"; }
-                break;
-
-            // Weapon Fire Rate / Pierce / Burst / Special Proj
-            case BuffType::WEAPON_FIRE_RATE:
-                line2Text = "Decrease"; ssEffect << (int)currentBuff.amount << "% Fire Delay"; break;
-            case BuffType::WEAPON_PIERCE:
-                line2Text = "Increase"; ssEffect << "+1 Pierce"; break;
-            case BuffType::WEAPON_BURST_COUNT:
-                line2Text = "Increase"; ssEffect << "+1 Burst Count"; break;
-            case BuffType::WEAPON_PROJ_PLUS_1_DMG_MINUS_30:
-                line2Text = "Increase Spread"; ssEffect << "+1 Proj (DMG -30%)"; break;
-
-            // Fire Spell Damage / CDR / Proj
-            case BuffType::FIRE_SPELL_DAMAGE:
-                 line2Text = "Increase Damage";
-                 if (Game::instance && Game::instance->playerManager) { int increase = std::max(1, 1 * Game::instance->playerManager->getLevel()); ssEffect << "+" << increase;}
-                 else { ssEffect << "+? (Scales)";}
-                 break;
-            case BuffType::FIRE_SPELL_COOLDOWN:
-                 line2Text = "Decrease"; ssEffect << (int)currentBuff.amount << "% Cooldown"; break;
-            case BuffType::FIRE_SPELL_PROJ_PLUS_1:
-                 if(currentBuff.name.find("Get") != std::string::npos) { line2Text = "Grants"; ssEffect << "Fire Vortex"; }
-                 else { line2Text = "Increase"; ssEffect << "+1 Fire Burst"; }
-                 break;
-
-             // Star Spell Damage / CDR / Proj
-            case BuffType::STAR_SPELL_DAMAGE:
-                 line2Text = "Increase Damage";
-                  if (Game::instance && Game::instance->playerManager) { int increase = std::max(1, 3 * Game::instance->playerManager->getLevel()); ssEffect << "+" << increase; }
-                  else { ssEffect << "+? (Scales)";}
-                 break;
-            case BuffType::STAR_SPELL_COOLDOWN:
-                 line2Text = "Decrease"; ssEffect << (int)currentBuff.amount << "% Cooldown"; break;
-            case BuffType::STAR_SPELL_PROJ_PLUS_1:
-                 if(currentBuff.name.find("Get") != std::string::npos) { line2Text = "Grants"; ssEffect << "Starfall"; }
-                 else { line2Text = "Increase"; ssEffect << "+1 Star"; }
-                 break;
-
-            default: line2Text = "Effect"; ssEffect << "Unknown Buff"; break;
+        if (newlinePos != std::string::npos) {
+            // Newline found - split the description
+            line2Text = fullDescription.substr(0, newlinePos);
+            line3Text = fullDescription.substr(newlinePos + 1); // Get text after '\n'
+        } else {
+            // No newline - display the full description on the third line (optional: you could try to parse it like before)
+            line2Text = ""; // Leave the second line blank
+            line3Text = fullDescription;
         }
-        line3Text = ssEffect.str();
 
-        // --- Line 2: Draw Verb ---
+        // --- Draw Line 2 ---
         if (!line2Text.empty()) {
             TTF_SizeText(fontToUse, line2Text.c_str(), &textWidth, &textHeight);
             drawTextWithOutline(line2Text, textCenterX - textWidth / 2, currentTextY, line2Color, outlineColor, 1, fontToUse);
-            currentTextY += textHeight + lineSpacing;
+            currentTextY += textHeight + lineSpacing; // Move Y down only if line 2 was drawn
         }
+
 
         // --- Line 3: Draw Effect/Value ---
         if (!line3Text.empty()) {
@@ -604,4 +564,72 @@ void UIManager::clearCache() {
         }
     }
     textCache.clear(); // Clear the vector itself
+}
+
+// Implement the new renderBossHealthBar function
+void UIManager::renderBossHealthBar() {
+    // Check if boss exists, is active, and has health
+    if (!currentBossEntity || !currentBossEntity->isActive() || !currentBossEntity->hasComponent<HealthComponent>()) {
+        return; // Don't render if no boss or boss is dead/invalid
+    }
+     // Use the fallback font if bossHealthFont failed to load
+    TTF_Font* fontToUse = bossHealthFont ? bossHealthFont : (uiHeaderFont ? uiHeaderFont : largeFont);
+    if (!renderer || !fontToUse) return; // Need renderer and a valid font
+
+    const HealthComponent& bossHealth = currentBossEntity->getComponent<HealthComponent>();
+    int currentHP = bossHealth.getHealth();
+    int maxHP = bossHealth.getMaxHealth();
+
+    // --- Positioning and Sizing (Large, Top-Center) ---
+    int windowWidth, windowHeight;
+    SDL_GetRendererOutputSize(renderer, &windowWidth, &windowHeight);
+
+    const int barWidth = windowWidth * 3 / 5; // Make it quite wide (e.g., 60% of screen)
+    const int barHeight = 30; // Make it taller
+    const int barX = (windowWidth - barWidth) / 2; // Center horizontally
+    const int barY = 20; // Position near the top of the screen
+
+    SDL_Color white = {255, 255, 255, 255};
+    SDL_Color labelColor = {230, 230, 230, 255}; // Light grey for text
+
+    // Draw Bar Background
+    SDL_SetRenderDrawColor(renderer, 50, 10, 10, 200); // Dark red background, slightly transparent
+    SDL_Rect bgRect = {barX - 2, barY - 2, barWidth + 4, barHeight + 4};
+    SDL_RenderFillRect(renderer, &bgRect);
+
+    // Draw Bar Border
+    SDL_SetRenderDrawColor(renderer, 150, 40, 40, 255); // Darker red border
+    SDL_RenderDrawRect(renderer, &bgRect);
+
+    // Draw Health Bar Fill (Gradient Red)
+    float healthPercent = (maxHP > 0) ? static_cast<float>(currentHP) / maxHP : 0.0f;
+    int currentBarWidth = static_cast<int>(barWidth * healthPercent);
+    // Simple Red Fill
+    SDL_SetRenderDrawColor(renderer, 200, 0, 0, 255); // Bright red fill
+    SDL_Rect healthRect = {barX, barY, currentBarWidth, barHeight};
+    SDL_RenderFillRect(renderer, &healthRect);
+
+    // Draw Health Text (Value/Max) - Centered on the bar using the boss font
+    std::stringstream ss; ss << "BOSS: " << currentHP << " / " << maxHP;
+    int textW = 0, textH = 0;
+    TTF_SizeText(fontToUse, ss.str().c_str(), &textW, &textH); // Use boss font size
+
+    // Draw text with outline for better visibility
+    drawTextWithOutline(ss.str(),
+                        barX + (barWidth - textW) / 2,
+                        barY + (barHeight - textH) / 2,
+                        labelColor, // Text color
+                        {0, 0, 0, 255}, // Outline color (black)
+                        1, // Outline width
+                        fontToUse); // Use the selected boss font
+}
+
+void UIManager::setBossEntity(Entity* boss) {
+    // Simply assign the passed pointer to the member variable
+    currentBossEntity = boss;
+    if (boss) {
+        std::cout << "UIManager: Boss entity set." << std::endl;
+    } else {
+         std::cout << "UIManager: Boss entity cleared." << std::endl; // Handle case where boss might be destroyed
+    }
 }

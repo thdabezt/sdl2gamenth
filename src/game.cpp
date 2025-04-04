@@ -117,6 +117,18 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
      assets->AddTexture("exp_orb_200", "sprites/projectile/exp_orb200.png"); // Added 200
      assets->AddTexture("exp_orb_500", "sprites/projectile/exp_orb500.png");
 
+     // --- Load BOSS Textures ---
+     assets->AddTexture("boss_walk", bossWalkSprite);
+     assets->AddTexture("boss_charge", bossChargeSprite);
+     assets->AddTexture("boss_slam", bossSlamSprite);
+     assets->AddTexture("boss_projectile", bossProjectileSprite);
+     // Check if textures loaded correctly (optional but recommended)
+     if (!assets->GetTexture("boss_walk") || !assets->GetTexture("boss_charge") ||
+         !assets->GetTexture("boss_slam") || !assets->GetTexture("boss_projectile")) {
+         std::cerr << "!!!!!! ERROR: Failed to load one or more BOSS textures !!!!!!" << std::endl;
+         // Consider setting isRunning = false or handling the error appropriately
+     }
+
      assets->AddSoundEffect("gunshot_sound", "assets/sound/shot.wav");
      assets->AddMusic("level_music", "assets/sound/hlcbg.mp3"); // Should work if file exists now
      assets->AddSoundEffect("fire_spell_sound", "assets/sound/fire.wav"); // Should work if file exists now
@@ -326,15 +338,35 @@ void Game::handleEvents() {
     switch (currentState) {
         case GameState::Playing:
             // Handle keys that work only during active play
+            
             if (Game::event.type == SDL_KEYDOWN) {
                 if (Game::event.key.keysym.sym == SDLK_ESCAPE) { // Pause Key
                     togglePause();
                     return; // Consume pause event
                 }
                 if (Game::event.key.keysym.sym == SDLK_l) { // Pause Key
-                    playerManager->levelUp();
+                    bool debugging = true;
+                    if (debugging) {
+                        
+                        playerManager->levelUp();
+                   }
                     return; // Consume pause event
                 }
+                // --- DEBUG: Spawn Boss ---
+                if (Game::event.key.keysym.sym == SDLK_b) {
+                    // --- ADD this condition check ---
+                    bool debugging = true;
+                     // Replace with your actual debug flag check
+                    if (debugging) {
+                         std::cout << "[DEBUG] 'B' pressed. Summoning boss and leveling up." << std::endl;
+                         spawnBossNearPlayer(); // Call the existing boss spawn function
+                        //  if(playerManager) playerManager->levelUp(); // Level up the player
+                          // Consume boss spawn event
+                    }
+                    return;
+                }
+                //--- END DEBUG ---
+           
             }
             
             // Update mouse world coordinates only when playing
@@ -679,268 +711,279 @@ void Game::spawnEnemy() {
 
 void Game::update(){
     // --- Check Game State ---
-    // Only update gameplay elements if playing
     if (currentState != GameState::Playing) {
-            // Still allow manager refresh? Maybe not if completely frozen.
-            // manager.refresh(); // Optional: refresh even if paused/gameover?
+        // manager.refresh(); // Optional refresh if paused? Decide based on desired pause behavior.
         return; // Skip updates if Paused or GameOver
     }
     // If we reach here, currentState == GameState::Playing
 
-    if (!isRunning || !playerEntity) return; // Check running state and player
+    if (!isRunning || !playerEntity) return; // Check running state and player existence
 
     // --- Use member 'manager' ---
-    manager.refresh();
+    manager.refresh(); // Refresh entities (removes inactive ones)
 
-    Uint32 currentTime = SDL_GetTicks();
-    if(currentState != GameState::Paused && !isInBuffSelection){ // Check buff selection state too
+    Uint32 currentTime = SDL_GetTicks(); // Get current time once for this frame
 
-        // --- Get groups using member 'manager' ---
-        auto& colliders = manager.getGroup(Game::groupColliders);
-        auto& projectiles = manager.getGroup(Game::groupProjectiles);
-        auto& enemies = manager.getGroup(Game::groupEnemies);
-        auto& expOrbs = manager.getGroup(Game::groupExpOrbs); // Needed for ExpOrbComponent update
+    // --- Get groups using member 'manager' ---
+    auto& colliders = manager.getGroup(Game::groupColliders);
+    auto& projectiles = manager.getGroup(Game::groupProjectiles);
+    auto& enemies = manager.getGroup(Game::groupEnemies);
+    auto& expOrbs = manager.getGroup(Game::groupExpOrbs);
 
-        // Update player pos (needed for camera, potentially other logic)
-        Vector2D playerPosStart; // Store position before manager.update()
-        if(playerEntity->hasComponent<TransformComponent>()) { // Check component exists
-            playerPosStart = playerEntity->getComponent<TransformComponent>().position;
-        }
+    // --- Use member 'manager' to update ---
+    manager.update(); // Update all active entities and components
 
-        // --- Use member 'manager' to update ---
-        manager.update(); // Update all active entities and components
-
-        // Collision Handling needs player Collider & Transform
-        if (!playerEntity->hasComponent<ColliderComponent>() || !playerEntity->hasComponent<TransformComponent>()) {
-             std::cerr << "Error in Game::update: Player missing Collider or Transform for collision checks!" << std::endl;
-             return; // Cannot do collisions without these
-        }
-        ColliderComponent& playerCollider = playerEntity->getComponent<ColliderComponent>();
-        TransformComponent& playerTransform = playerEntity->getComponent<TransformComponent>();
-        SDL_Rect playerCol = playerCollider.collider;
+    // --- Collision Checks ---
+    // Ensure player has necessary components before proceeding
+    if (!playerEntity->hasComponent<ColliderComponent>() || !playerEntity->hasComponent<TransformComponent>() || !playerEntity->hasComponent<HealthComponent>()) {
+         std::cerr << "Error in Game::update: Player missing required components for collision/logic!" << std::endl;
+         // Maybe transition to game over or handle error? For now, just return to prevent crashes.
+         return;
+    }
+    // Get player components (now safe after check)
+    ColliderComponent& playerCollider = playerEntity->getComponent<ColliderComponent>();
+    TransformComponent& playerTransform = playerEntity->getComponent<TransformComponent>();
+    HealthComponent& playerHealth = playerEntity->getComponent<HealthComponent>();
+    SDL_Rect playerColRect = playerCollider.collider; // Get player collider rect for checks
 
 
+    // --- Player vs Terrain collision ---
+    for (auto* c : colliders) {
+         if (!c || !c->isActive() || !c->hasComponent<ColliderComponent>()) continue;
+        ColliderComponent& obstacleCollider = c->getComponent<ColliderComponent>();
+        if (obstacleCollider.tag != "terrain") continue; // Only check against terrain colliders
 
-        // Player vs Terrain collision
-        for (auto* c : colliders) { // Iterate over pointers
-             if (!c || !c->isActive() || !c->hasComponent<ColliderComponent>()) continue; // Safety checks
-            ColliderComponent& obstacleCollider = c->getComponent<ColliderComponent>();
-            // Check tag AFTER getting component
-            if (obstacleCollider.tag != "terrain") continue;
+        SDL_Rect cCol = obstacleCollider.collider;
+        if (Collision::AABB(playerColRect, cCol)) {
+            // Basic push-out resolution logic
+             float overlapX = 0.0f, overlapY = 0.0f;
+             Vector2D centerPlayer(playerColRect.x + playerColRect.w / 2.0f, playerColRect.y + playerColRect.h / 2.0f);
+             Vector2D centerObstacle(cCol.x + cCol.w / 2.0f, cCol.y + cCol.h / 2.0f);
+             overlapX = (playerColRect.w / 2.0f + cCol.w / 2.0f) - std::abs(centerPlayer.x - centerObstacle.x);
+             overlapY = (playerColRect.h / 2.0f + cCol.h / 2.0f) - std::abs(centerPlayer.y - centerObstacle.y);
 
-            SDL_Rect cCol = obstacleCollider.collider;
-            if (Collision::AABB(playerCol, cCol)) {
-                // Resolve collision (push-out logic from before)
-                 float overlapX = 0.0f, overlapY = 0.0f;
-                 Vector2D centerPlayer(playerCol.x + playerCol.w / 2.0f, playerCol.y + playerCol.h / 2.0f);
-                 Vector2D centerObstacle(cCol.x + cCol.w / 2.0f, cCol.y + cCol.h / 2.0f);
-                 overlapX = (playerCol.w / 2.0f + cCol.w / 2.0f) - std::abs(centerPlayer.x - centerObstacle.x);
-                 overlapY = (playerCol.h / 2.0f + cCol.h / 2.0f) - std::abs(centerPlayer.y - centerObstacle.y);
-
-                 if (overlapX > 0 && overlapY > 0) {
-                     if (overlapX < overlapY) {
-                         playerTransform.position.x += (centerPlayer.x < centerObstacle.x ? -overlapX : overlapX);
-                     } else {
-                         playerTransform.position.y += (centerPlayer.y < centerObstacle.y ? -overlapY : overlapY);
-                     }
-                     playerCollider.update(); // Update collider component immediately
-                     playerCol = playerCollider.collider; // Update local SDL_Rect
+             if (overlapX > 0 && overlapY > 0) { // Ensure overlap exists
+                 if (overlapX < overlapY) {
+                     playerTransform.position.x += (centerPlayer.x < centerObstacle.x ? -overlapX : overlapX);
+                 } else {
+                     playerTransform.position.y += (centerPlayer.y < centerObstacle.y ? -overlapY : overlapY);
                  }
-            }
+                 playerCollider.update(); // Update collider position immediately
+                 playerColRect = playerCollider.collider; // Update local rect after position change
+             }
         }
+    }
 
-        // Projectile vs Enemy collision
-        for (auto* p : projectiles) { // Iterate over pointers
-             if (!p || !p->isActive() || !p->hasComponent<ColliderComponent>() || !p->hasComponent<ProjectileComponent>() || !p->hasComponent<TransformComponent>()) continue;
-             SDL_Rect projectileCollider = p->getComponent<ColliderComponent>().collider;
-             ProjectileComponent& projComp = p->getComponent<ProjectileComponent>();
-            
-             for (auto* e : enemies) { // Iterate over pointers
-                 if (!e || !e->isActive() || !e->hasComponent<ColliderComponent>()) continue;
-                 if (projComp.hasHit(e)) continue; // Check before getting collider
+    // --- Projectile vs Enemy collision ---
+    for (auto* p : projectiles) {
+         // Check projectile validity and required components
+         if (!p || !p->isActive() || !p->hasComponent<ColliderComponent>() || !p->hasComponent<ProjectileComponent>() || !p->hasComponent<TransformComponent>()) continue;
 
-                 SDL_Rect enemyCollider = e->getComponent<ColliderComponent>().collider;
-                 if (Collision::AABB(enemyCollider, projectileCollider)) {
-                     // ... (Damage, Knockback, Hit Tint, Death logic - mostly unchanged) ...
-                     int damage = projComp.getDamage();
-                      if (e->hasComponent<TransformComponent>()) { /* Knockback */
-                          Vector2D knockbackDir = p->getComponent<TransformComponent>().velocity.Normalize();
-                          float knockbackForce = 35.0f;
-                          e->getComponent<TransformComponent>().position.x += knockbackDir.x * knockbackForce;
-                          e->getComponent<TransformComponent>().position.y += knockbackDir.y * knockbackForce;
-                          if(e->hasComponent<ColliderComponent>()) e->getComponent<ColliderComponent>().update();
-                      }
-                      if (e->hasComponent<SpriteComponent>()) { /* Hit Tint */
-                         e->getComponent<SpriteComponent>().isHit = true;
-                         e->getComponent<SpriteComponent>().hitTime = currentTime;
-                      }// --- Apply Lifesteal to Player ---
-                    if (playerManager) { // Ensure playerManager is valid
+         ColliderComponent& projectileColliderComp = p->getComponent<ColliderComponent>();
+         SDL_Rect projectileColliderRect = projectileColliderComp.collider;
+         ProjectileComponent& projComp = p->getComponent<ProjectileComponent>();
+         SpriteComponent& projSprite = p->getComponent<SpriteComponent>();
+         for (auto* e : enemies) {
+             // Check enemy validity and required components
+             if (!e || !e->isActive() || !e->hasComponent<ColliderComponent>()) continue;
+             // Skip if projectile already hit this enemy and pierce is used up
+             if (projComp.hasHit(e)) continue;
+
+             SDL_Rect enemyCollider = e->getComponent<ColliderComponent>().collider;
+
+             if (Collision::AABB(enemyCollider, projectileColliderRect)) {
+                 
+                 // --- ADD CHECK: Is this a Boss Projectile hitting an Enemy? ---
+                 SDL_Texture* expectedBossProjTexture = nullptr;
+                 if (Game::instance && Game::instance->assets) {
+                     expectedBossProjTexture = Game::instance->assets->GetTexture("boss_projectile");
+                 }
+
+                 if (projSprite.getTexture() == expectedBossProjTexture && expectedBossProjTexture != nullptr) {
+                     // It's a boss projectile hitting an enemy.
+                     // Do NOT apply damage or effects to the enemy.
+                     // We might still want the projectile to be destroyed or count pierce?
+                     // For now, let's just skip damaging the enemy.
+                     // std::cout << "Boss projectile hit enemy ID " << e->debug_id << " - Damage skipped." << std::endl; // Debug log
+                     // If pierce should still count against enemies:
+                     // projComp.recordHit(e); // Record hit for pierce count
+                     // if (projComp.shouldDestroy()) {
+                     //     p->destroy();
+                     //     break; // Exit inner enemy loop if projectile destroyed
+                     // }
+                     // If boss projectiles should pass through enemies harmlessly, do nothing here.
+
+                     // Let's assume boss projectiles pass through enemies for now:
+                     continue; // Skip the rest of the logic for this enemy and check the next one
+                 }
+                 // --- END CHECK ---
+                int damage = projComp.getDamage();
+
+                 // Apply Lifesteal to Player if enemy hit
+                 if (playerManager) {
                         float lifestealPercent = playerManager->getLifestealPercentage();
                         if (lifestealPercent > 0 && damage > 0) {
                             int healAmount = static_cast<int>(std::round(damage * (lifestealPercent / 100.0f)));
-                            if (healAmount > 0) {
-                                playerManager->heal(healAmount); // Heal the player
+                            if (healAmount > 0) playerManager->heal(healAmount);
+                        }
+                 }
+
+                 // Apply Damage and Effects to Enemy
+                 if (e->hasComponent<HealthComponent>()) {
+                      HealthComponent& enemyHealth = e->getComponent<HealthComponent>();
+                      enemyHealth.takeDamage(damage);
+                      // --- Check for Enemy Death ---
+                      if (enemyHealth.getHealth() <= 0) {
+                            int finalExp = 0; int baseExp = 0; int scaledMaxHp = 0; int playerLvl = 1;
+                            if (e->hasComponent<EnemyAIComponent>()) baseExp = e->getComponent<EnemyAIComponent>().getExpValue();
+                            scaledMaxHp = enemyHealth.getMaxHealth(); // Use the max health it spawned with
+                            if (playerManager) playerLvl = playerManager->getLevel();
+                            finalExp = std::max(1, baseExp + (scaledMaxHp / 100) + (playerLvl / 5));
+
+                            if (e->hasComponent<TransformComponent>()) {
+                                 Vector2D deathPosition = e->getComponent<TransformComponent>().position;
+                                 // Center orb spawn slightly
+                                 deathPosition.x += (e->getComponent<TransformComponent>().width * e->getComponent<TransformComponent>().scale) / 2.0f;
+                                 deathPosition.y += (e->getComponent<TransformComponent>().height * e->getComponent<TransformComponent>().scale) / 2.0f;
+                                 // Select Orb Texture based on finalExp
+                                 std::string orbTextureId = "exp_orb_1";
+                                 if (finalExp >= 500) orbTextureId = "exp_orb_500";
+                                 else if (finalExp >= 200) orbTextureId = "exp_orb_200";
+                                 else if (finalExp >= 100) orbTextureId = "exp_orb_100";
+                                 else if (finalExp >= 50) orbTextureId = "exp_orb_50";
+                                 else if (finalExp >= 10) orbTextureId = "exp_orb_10";
+
+                                 auto& orb = manager.addEntity();
+                                 orb.addComponent<TransformComponent>(deathPosition.x, deathPosition.y, 16, 16, 1);
+                                 orb.addComponent<SpriteComponent>(orbTextureId);
+                                 orb.addComponent<ColliderComponent>("exp_orb", 16, 16);
+                                 orb.addComponent<ExpOrbComponent>(finalExp);
+                                 orb.addGroup(groupExpOrbs); // Add to group for updates/rendering
                             }
-                        }
-                    }
-                    if (e->hasComponent<HealthComponent>()) {
-                        e->getComponent<HealthComponent>().takeDamage(damage); // Apply damage
+                            if(playerManager) playerManager->incrementEnemiesDefeated();
+                            // Enemy entity is destroyed by takeDamage if health <= 0
+                      } // End death check
+                 } // End enemy health check
 
-                        // --- Check for Enemy Death ---
-                        if (e->getComponent<HealthComponent>().getHealth() <= 0) {
+                 // Knockback Enemy
+                 if (e->hasComponent<TransformComponent>() && p->hasComponent<TransformComponent>()) {
+                      Vector2D knockbackDir = p->getComponent<TransformComponent>().velocity.Normalize();
+                      float knockbackForce = 35.0f; // Base knockback
+                      e->getComponent<TransformComponent>().position += knockbackDir * knockbackForce;
+                      if(e->hasComponent<ColliderComponent>()) e->getComponent<ColliderComponent>().update(); // Update collider after KB
+                 }
+                 // Enemy Hit Tint
+                 if (e->hasComponent<SpriteComponent>()) {
+                     e->getComponent<SpriteComponent>().isHit = true;
+                     e->getComponent<SpriteComponent>().hitTime = currentTime;
+                 }
 
-                             // --- Calculate EXP based on new formula ---
-                             int finalExp = 0; // Default EXP
-                             int baseExp = 0;
-                             int scaledMaxHp = 0;
-                             int playerLevel = 1; // Default level
-
-                             if (e->hasComponent<EnemyAIComponent>()) {
-                                  baseExp = e->getComponent<EnemyAIComponent>().getExpValue(); // Get base EXP
-                             } else {
-                                //   std::cerr << "Warning: Defeated enemy missing EnemyAIComponent, cannot get base EXP." << std::endl;
-                             }
-
-                             // We already know HealthComponent exists from the outer check
-                             scaledMaxHp = e->getComponent<HealthComponent>().getMaxHealth(); // Get the actual max HP (already scaled when enemy spawned)
-
-                             if (playerManager) {
-                                  playerLevel = playerManager->getLevel(); // Get current player level
-                             } else {
-                                //   std::cerr << "Warning: playerManager is null, cannot get player level for EXP calc." << std::endl;
-                             }
-
-                             // Apply the formula: base + (maxHP/100) + (level/5)
-                             // Ensure integer division is handled as intended (truncates decimals)
-                             finalExp = baseExp + (scaledMaxHp / 100) + (playerLevel / 5);
-                             finalExp = std::max(1, finalExp); // Ensure at least 1 EXP is granted
-
-                            //  std::cout << "Enemy Defeated! BaseExp: " << baseExp << ", ScaledMaxHP: " << scaledMaxHp << ", PlayerLvl: " << playerLevel << " -> FinalExp: " << finalExp << std::endl;
-                             // --- End EXP Calculation ---
+                 // Record hit for pierce check
+                 projComp.recordHit(e);
+                 if (projComp.shouldDestroy()) {
+                      p->destroy();
+                      break; // Exit inner enemy loop, projectile gone
+                 }
+             } // End AABB check (Projectile vs Enemy)
+         } // End enemy loop
+     } // End projectile loop (Projectile vs Enemy)
 
 
-                             // --- Spawn Exp Orb using calculated finalExp ---
-                             if (playerManager && e->hasComponent<TransformComponent>()) { // Use Transform for position now
-                                  Vector2D deathPosition = e->getComponent<TransformComponent>().position;
-                                  // Adjust position slightly if needed (e.g., center of transform)
-                                  deathPosition.x += (e->getComponent<TransformComponent>().width * e->getComponent<TransformComponent>().scale) / 2.0f;
-                                  deathPosition.y += (e->getComponent<TransformComponent>().height * e->getComponent<TransformComponent>().scale) / 2.0f;
+    // --- Projectile vs Player Collision ---
+    playerColRect = playerCollider.collider; // Re-get player collider rect in case it moved due to terrain collision resolution
+    for (auto* p : projectiles) {
+        // Basic checks for projectile validity
+        if (!p || !p->isActive() || !p->hasComponent<ColliderComponent>() || !p->hasComponent<ProjectileComponent>() || !p->hasComponent<SpriteComponent>()) {
+             continue;
+        }
 
-                                  // --- Select Orb Texture based on finalExp ---
-                                     std::string orbTextureId = "exp_orb_1"; // Default to smallest
-                                     if (finalExp >= 500) {
-                                         orbTextureId = "exp_orb_500";
-                                     } else if (finalExp >= 200) { // Check thresholds from highest to lowest
-                                         orbTextureId = "exp_orb_200";
-                                     } else if (finalExp >= 100) {
-                                         orbTextureId = "exp_orb_100";
-                                     } else if (finalExp >= 50) {
-                                         orbTextureId = "exp_orb_50";
-                                     } else if (finalExp >= 10) {
-                                         orbTextureId = "exp_orb_10";
-                                     }
-                                     // If less than 10, it remains "exp_orb_1"
-                                     // --- End Orb Texture Selection ---
+        ColliderComponent& projCollider = p->getComponent<ColliderComponent>();
+        SpriteComponent& projSprite = p->getComponent<SpriteComponent>();
 
+        // Check for collision
+        if (Collision::AABB(projCollider.collider, playerColRect)) {
 
-                                     auto& orb = manager.addEntity();
-                                     // Use the selected orbTextureId
-                                     orb.addComponent<TransformComponent>(deathPosition.x, deathPosition.y, 16, 16, 1);
-                                     orb.addComponent<SpriteComponent>(orbTextureId); // Use the selected texture ID
-                                     orb.addComponent<ColliderComponent>("exp_orb", 16, 16);
-                                     orb.addComponent<ExpOrbComponent>(finalExp);
-                                }
-                                // --- End Orb Spawning ---
-
-                             if(playerManager) playerManager->incrementEnemiesDefeated();
-                             // Note: The enemy entity is destroyed automatically by HealthComponent::takeDamage when health reaches 0 if it's not the player.
-                        }
-                        // --- End Death Check ---
-                    } // End if has HealthComponent check
-
-                  projComp.recordHit(e); // Record hit regardless of death
-                  if (projComp.shouldDestroy()) {
-                       p->destroy();
-                       break; // Exit inner enemy loop if projectile is destroyed
-                  }
-              } // End AABB check
-          } // End enemy loop
-          // if (!p->isActive()) continue; // This line might cause issues if break is used above. Check logic flow. Better to let outer loop handle inactive 'p'.
-     } // End projectile loop
-
-
-        // Enemy Spawning (consider moving timer logic outside update if needed)
-        Uint32 spawnInterval = 1000; // Default to 1 second (for level 50+)
-        if (playerManager) { // Check if playerManager exists
-            int currentLevel = playerManager->getLevel();
-            if (currentLevel <= 20) {
-                spawnInterval = 3000; // 3 seconds for levels 1-20
-            } else if (currentLevel <= 50) {
-                spawnInterval = 2000; // 2 seconds for levels 21-50
+            // Check if it's a Boss Projectile using texture ID
+            SDL_Texture* expectedBossProjTexture = nullptr;
+            if (Game::instance && Game::instance->assets) {
+                 expectedBossProjTexture = Game::instance->assets->GetTexture("boss_projectile");
             }
-            // Levels 50+ use the default 1000ms (1 second)
-        } else {
-            // Fallback if playerManager is somehow null (shouldn't happen)
-            spawnInterval = 3000;
-        }
 
-        if (currentTime > lastEnemySpawnTime + spawnInterval) {
-            spawnEnemy(); // Uses member manager
-            lastEnemySpawnTime = currentTime;
-        }
+            if (projSprite.getTexture() == expectedBossProjTexture && expectedBossProjTexture != nullptr) {
+                // --- It's the boss projectile, apply damage ---
+                ProjectileComponent& projComp = p->getComponent<ProjectileComponent>();
+                int damage = projComp.getDamage();
 
-        
-        // --- Camera Update (uses playerTransform directly) ---
-        int currentWindowWidth, currentWindowHeight;
-        // Get the actual current output size of the renderer
-        if (renderer) { // Ensure renderer is valid
-            SDL_GetRendererOutputSize(renderer, &currentWindowWidth, &currentWindowHeight);
-        } else {
-            // Fallback or error handling if renderer is somehow null
-            currentWindowWidth = WINDOW_WIDTH; // Use constants as a fallback
-            currentWindowHeight = WINDOW_HEIGHT;
-            std::cerr << "Warning: Game::renderer is null during camera update!" << std::endl;
-        }
+                // std::cout << "Player hit by BOSS projectile! Damage: " << damage << std::endl; // Debug
+                playerHealth.takeDamage(damage);
 
-        // Update the camera's dimensions to match the current window size
-        camera.w = currentWindowWidth;
-        camera.h = currentWindowHeight;
+                // Apply hit effect to player sprite
+                if (playerEntity->hasComponent<SpriteComponent>()) {
+                     playerEntity->getComponent<SpriteComponent>().isHit = true;
+                     playerEntity->getComponent<SpriteComponent>().hitTime = currentTime;
+                }
 
-        // Center the camera on the player using the current window dimensions
-        camera.x = static_cast<int>(playerTransform.position.x - (currentWindowWidth / 2.0f));
-        camera.y = static_cast<int>(playerTransform.position.y - (currentWindowHeight / 2.0f));
+                // Destroy projectile
+                p->destroy();
+                // --- End Boss Projectile Damage ---
 
-        // Clamp Camera to map bounds (using updated camera.w and camera.h)
-        if (camera.x < 0) camera.x = 0;
-        if (camera.y < 0) camera.y = 0;
-        // Ensure map and TILE_SIZE are accessible or calculate map dimensions appropriately
-        // Assuming TILE_SIZE and MAP_WIDTH/HEIGHT are available from constants.h or map object
-        int mapPixelWidth = MAP_WIDTH * TILE_SIZE;   // Defined in constants.h
-        int mapPixelHeight = MAP_HEIGHT * TILE_SIZE; // Defined in constants.h
-        if (camera.x > mapPixelWidth - camera.w) camera.x = mapPixelWidth - camera.w;
-        if (camera.y > mapPixelHeight - camera.h) camera.y = mapPixelHeight - camera.h;
+            }
+            // Note: No else branch needed here if only boss projectiles harm player
+        } // End AABB check (Projectile vs Player)
+    } // End projectile loop (Projectile vs Player)
 
-        // --- End Camera Update ---
 
-    } else {
-        // Game is paused
+    // --- Enemy Spawning ---
+    // Determine spawn interval based on player level
+    Uint32 spawnInterval = 1000; // Default (level 50+)
+    if (playerManager) {
+        int currentLevel = playerManager->getLevel();
+        if (currentLevel <= 5) spawnInterval = 3000;
+        else if (currentLevel <= 50) spawnInterval = 2000;
     }
+
+    if (currentTime > lastEnemySpawnTime + spawnInterval) {
+        spawnEnemy(); // Uses member manager
+        lastEnemySpawnTime = currentTime;
+    }
+
+
+    // --- Camera Update ---
+    // Ensure renderer is valid before getting size
+    int currentWindowWidth = WINDOW_WIDTH, currentWindowHeight = WINDOW_HEIGHT; // Defaults
+    if (renderer) {
+        SDL_GetRendererOutputSize(renderer, &currentWindowWidth, &currentWindowHeight);
+    } else {
+         std::cerr << "Warning: Game::renderer is null during camera update!" << std::endl;
+    }
+    // Update camera dimensions
+    camera.w = currentWindowWidth;
+    camera.h = currentWindowHeight;
+    // Center camera on player (using playerTransform guaranteed by check at start)
+    camera.x = static_cast<int>(playerTransform.position.x - (currentWindowWidth / 2.0f));
+    camera.y = static_cast<int>(playerTransform.position.y - (currentWindowHeight / 2.0f));
+    // Clamp Camera to map bounds
+    int mapPixelWidth = MAP_WIDTH * TILE_SIZE;
+    int mapPixelHeight = MAP_HEIGHT * TILE_SIZE;
+    camera.x = std::max(0, std::min(camera.x, mapPixelWidth - camera.w));
+    camera.y = std::max(0, std::min(camera.y, mapPixelHeight - camera.h));
+
+
     // --- Check for Player Death AFTER updates and collisions ---
-    if (playerEntity && playerEntity->hasComponent<HealthComponent>() && playerEntity->getComponent<HealthComponent>().getHealth() <= 0) {
+    if (playerHealth.getHealth() <= 0 && currentState != GameState::GameOver) { // Prevent multiple transitions
         std::cout << "Player died! Switching to GameOver state." << std::endl;
         currentState = GameState::GameOver; // Change state
         Mix_HaltMusic(); // Stop game music
-        // --- ADDED: Play Game Over Sound Effect ---
+        // Play Game Over Sound Effect
         if (playerEntity->hasComponent<SoundComponent>()) {
-            // Ensure the sound component exists before trying to play
             playerEntity->getComponent<SoundComponent>().playSoundEffect("gameover_sfx");
-            // std::cout << "DEBUG: Played gameover_sfx" << std::endl; // Optional debug log
         } else {
              std::cerr << "Warning: Player has no SoundComponent to play game over SFX!" << std::endl;
         }
-        // --- END ADDED ---
+        // Let the main loop handle scene transitions based on state
     }
     // --- End Death Check ---
+
 } // End Game::update
 
 
@@ -1046,10 +1089,11 @@ void Game::renderHealthBar(Entity& entity, Vector2D position) {
     int xPos = static_cast<int>(position.x) - camera.x + (entity.getComponent<ColliderComponent>().collider.w / 2) - (barWidth / 2); // Centered above collider
     int yPos = static_cast<int>(position.y) - camera.y - 15; // Position above the entity
 
+    
     // Simple visibility check (could be refined)
-    if (xPos < -barWidth || xPos > WINDOW_WIDTH ||
-        yPos < -barHeight || yPos > WINDOW_HEIGHT) {
-        return; // Don't render if likely offscreen
+    if (xPos + barWidth < 0 || xPos > Game::camera.w || // Check if right edge is left of screen OR left edge is right of screen
+        yPos + barHeight < 0 || yPos > Game::camera.h) { // Check if bottom edge is above screen OR top edge is below screen
+        return;
     }
 
     // Draw background (black or dark gray)
@@ -1106,10 +1150,16 @@ void Game::render(){
 
          // Health Bars (on top of characters)
          for(auto* e : manager.getGroup(Game::groupEnemies)) {
-             if (e && e->isActive() && e->hasComponent<ColliderComponent>() && e->hasComponent<HealthComponent>()) {
-                 renderHealthBar(*e, e->getComponent<ColliderComponent>().position);
-             }
-         }
+            if (e && e->isActive() && e->hasComponent<ColliderComponent>() && e->hasComponent<HealthComponent>()) {
+                // <<< --- ADD THIS CHECK --- >>>
+                // Don't render the default health bar if it's the boss
+                // (The boss health bar is rendered separately by the UI Manager)
+                if (!e->hasComponent<BossAIComponent>()) {
+                     renderHealthBar(*e, e->getComponent<ColliderComponent>().position); // Pass Transform position
+                }
+                // <<< --- END CHECK --- >>>
+            }
+        }
          // --- End Render Gameplay Elements ---
 
 
@@ -1772,8 +1822,8 @@ void Game::initializeEnemyDatabase() {
     allEnemyDatabase.push_back({"aligator2", aligator2Sprite, aligator2Health, aligator2Damage, aligator2Speed, aligator2Exp, 0, 15});
 
     // Additional enemies
-    allEnemyDatabase.push_back({"skeleton_shield", skeletonShieldSprite, skeletonShieldHealth, skeletonShieldDamage, skeletonShieldSpeed, skeletonShieldExp, 0, 20});
-    allEnemyDatabase.push_back({"eliteskeleton_shield", eliteSkeletonShieldSprite, eliteSkeletonShieldHealth, eliteSkeletonShieldDamage, eliteSkeletonShieldSpeed, eliteSkeletonShieldExp, 0, 40});
+    allEnemyDatabase.push_back({"skeleton_shield", skeletonShieldSprite, skeletonShieldHealth, skeletonShieldDamage, skeletonShieldSpeed, skeletonShieldExp, 0, 15});
+    allEnemyDatabase.push_back({"eliteskeleton_shield", eliteSkeletonShieldSprite, eliteSkeletonShieldHealth, eliteSkeletonShieldDamage, eliteSkeletonShieldSpeed, eliteSkeletonShieldExp, 0, 25});
 
 }
 
@@ -1899,4 +1949,155 @@ EnemySpawnInfo* Game::selectEnemyBasedOnWeight() {
     // Fallback in case of rounding errors or unexpected issues
     std::cerr << "Warning: Weighted selection did not pick an enemy. Returning last." << std::endl;
     return currentSpawnPool.back();
+}
+
+// --- ADDED: Spawn Boss Function ---
+void Game::spawnBossNearPlayer() {
+    if (!playerEntity || !playerManager || !playerEntity->hasComponent<TransformComponent>()) {
+        std::cerr << "Cannot spawn boss: Player not ready." << std::endl;
+        return;
+    }
+
+    // Check if a boss already exists (simple check, could be more robust)
+    // This prevents spawning multiple bosses with 'b' spam
+    for (auto* entity : manager.getGroup(groupEnemies)) {
+        if (entity && entity->hasComponent<BossAIComponent>()) {
+             std::cout << "Boss already exists, not spawning another." << std::endl;
+             return;
+        }
+    }
+
+
+    Vector2D playerPos = playerEntity->getComponent<TransformComponent>().position;
+    Vector2D spawnPos = playerPos;
+    spawnPos.x += 150; // Spawn slightly to the right of the player
+
+    std::cout << "Spawning Boss near player at (" << spawnPos.x << ", " << spawnPos.y << ")" << std::endl;
+
+    auto& boss = manager.addEntity();
+    boss.addComponent<TransformComponent>(spawnPos.x, spawnPos.y, BOSS_SPRITE_WIDTH, BOSS_SPRITE_HEIGHT, 1); // Scale 1 for boss? Adjust if needed
+    boss.addComponent<SpriteComponent>("boss_walk", true); // Start with walk sprite, animated
+    // Adjust collider size/offset for the boss sprite (110x110)
+    boss.addComponent<ColliderComponent>("boss", 90, 90); // Example collider size - ADJUST THIS! Needs tuning.
+    boss.addComponent<HealthComponent>(BOSS_HEALTH, BOSS_HEALTH);
+
+    // Ensure player pointers are valid before passing
+     Vector2D* playerPosPtr = &playerEntity->getComponent<TransformComponent>().position; // Pass transform position
+     Entity* playerEntPtr = playerEntity;
+
+     if (!playerPosPtr || !playerEntPtr) {
+          std::cerr << "FATAL ERROR: Invalid player pointers during boss spawn!" << std::endl;
+          boss.destroy(); // Clean up boss entity if pointers invalid
+          return;
+     }
+
+     boss.addComponent<BossAIComponent>(
+        BOSS_SPEED,
+        100.0f, // approachDistanceThreshold
+        90.0f,  // contactDistanceThreshold (already updated)
+        BOSS_SLAM_DAMAGE,
+        BOSS_PROJECTILE_DAMAGE,
+        BOSS_KNOCKBACK_FORCE, // Value from constants.h
+        // playerPosPtr, // <<< REMOVE THIS ARGUMENT
+        playerEntPtr  // Pass only the entity pointer
+    );
+    // boss.addComponent<SoundComponent>(); // Add if boss has sounds
+    // boss.getComponent<SoundComponent>().addSoundEffect("boss_shoot", "boss_shoot");
+    // boss.getComponent<SoundComponent>().addSoundEffect("boss_slam", "boss_slam");
+
+    boss.addGroup(groupEnemies); // Add to enemy group for collisions etc.
+
+    // --- Activate Boss Health Bar (if UI supports it) ---
+     if (ui) {
+         ui->setBossEntity(&boss); // Assuming UIManager has a method like this
+     }
+    // --- End Health Bar Activation ---
+}
+// --- END Spawn Boss Function ---
+
+// --- RENAMED and MODIFIED: Spawn Boss Function ---
+void Game::spawnBoss() { // Renamed from spawnBossNearPlayer
+    // --- Check if spawn points exist ---
+    if (spawnPoints.empty()) {
+        std::cerr << "Cannot spawn boss: No spawn points available!" << std::endl;
+        return;
+    }
+    // --- Check player existence (still needed for AI target) ---
+    if (!playerEntity || !playerManager || !playerEntity->hasComponent<TransformComponent>()) {
+        std::cerr << "Cannot spawn boss: Player not ready." << std::endl;
+        return;
+    }
+
+    // Check if a boss already exists
+    for (auto* entity : manager.getGroup(groupEnemies)) {
+        if (entity && entity->hasComponent<BossAIComponent>()) {
+             std::cout << "Boss already exists, not spawning another." << std::endl;
+             return;
+        }
+    }
+
+    // --- Select a random spawn point ---
+    int randomIndex = std::rand() % spawnPoints.size();
+    Vector2D spawnPosition = spawnPoints[randomIndex];
+    // --- END: Select a random spawn point ---
+
+    // --- Removed player position calculation for spawn ---
+    // Vector2D playerPos = playerEntity->getComponent<TransformComponent>().position;
+    // Vector2D spawnPos = playerPos;
+    // spawnPos.x += 150; // Spawn slightly to the right of the player
+    // --- Use the randomly selected spawnPosition instead ---
+
+    std::cout << "Spawning Boss at random spawn point (" << spawnPosition.x << ", " << spawnPosition.y << ")" << std::endl;
+
+    auto& boss = manager.addEntity();
+    // --- Use spawnPosition for the TransformComponent ---
+    boss.addComponent<TransformComponent>(spawnPosition.x, spawnPosition.y, BOSS_SPRITE_WIDTH, BOSS_SPRITE_HEIGHT, 1);
+    // --- END Use spawnPosition ---
+    boss.addComponent<SpriteComponent>("boss_walk", true);
+    boss.addComponent<ColliderComponent>("boss", 90, 90);
+    // --- Calculate Scaled Boss Health ---
+    int playerLevel = 1; // Default level if playerManager is not ready
+    if (playerManager) { // Ensure playerManager is valid
+        playerLevel = playerManager->getLevel();
+    } else {
+        std::cerr << "Warning: PlayerManager not available during boss spawn, defaulting level to 1 for health scaling." << std::endl;
+    }
+    // Apply the scaling formula: base * (1 + lvl/10 + lvl/20 + lvl/50)
+    // Ensure floating-point division
+    float scaleFactor = 1.0f + (static_cast<float>(playerLevel) / 10.0f) + (static_cast<float>(playerLevel) / 20.0f) + (static_cast<float>(playerLevel) / 50.0f);
+    // Ensure base health is at least the constant value
+    int scaledBossHealth = static_cast<int>(std::max((float)BOSS_HEALTH, BOSS_HEALTH * scaleFactor));
+
+    std::cout << "Spawning Boss (Player Lvl: " << playerLevel << ") with Scaled Health: " << scaledBossHealth << " (Base: " << BOSS_HEALTH << ", ScaleFactor: " << scaleFactor << ")" << std::endl; // Debug log
+
+    // Add HealthComponent with the calculated scaled health
+    boss.addComponent<HealthComponent>(scaledBossHealth, scaledBossHealth);
+    // --- End Scaled Boss Health ---
+
+    // Ensure player pointers are valid before passing
+     // Vector2D* playerPosPtr = &playerEntity->getComponent<TransformComponent>().position; // Removed, not needed directly for spawn pos
+     Entity* playerEntPtr = playerEntity;
+
+     if (!playerEntPtr) { // Simplified check
+          std::cerr << "FATAL ERROR: Invalid player entity pointer during boss spawn!" << std::endl;
+          boss.destroy();
+          return;
+     }
+
+     boss.addComponent<BossAIComponent>(
+        BOSS_SPEED,
+        100.0f, // approachDistanceThreshold
+        90.0f,  // contactDistanceThreshold
+        BOSS_SLAM_DAMAGE,
+        BOSS_PROJECTILE_DAMAGE,
+        BOSS_KNOCKBACK_FORCE,
+        playerEntPtr  // Pass only the entity pointer
+    );
+
+    boss.addGroup(groupEnemies);
+
+    // Activate Boss Health Bar
+     if (ui) {
+         ui->setBossEntity(&boss);
+     }
 }

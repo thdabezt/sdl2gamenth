@@ -8,6 +8,8 @@
 #include "../AssetManager.h"
 #include "../game.h" // Include game.h for Game::instance
 #include <iostream> // For error logging
+#include "ProjectileComponent.h"
+
 
 class SpriteComponent : public Component {
 private:
@@ -17,11 +19,13 @@ private:
 
     bool animated = false;
     int frames = 0;
-    int speed = 100; //ms
+    
 
     bool initialized = false; // <<< ADD Initialization Flag
 
 public:
+    int speed = 100; //ms
+
     bool isHit = false;
     Uint32 hitTime = 0;
     Uint32 hitDuration = 150; // Flash duration in milliseconds
@@ -38,6 +42,7 @@ public:
     std::map<const char*, Animation> animations;
 
     SDL_RendererFlip spriteFlip = SDL_FLIP_NONE;
+
 
     SpriteComponent() = default;
     SpriteComponent(std::string id){
@@ -124,14 +129,46 @@ public:
         destRect.w = transform->width * transform->scale;
         destRect.h = transform->height * transform->scale;
 
-        if (texture == Game::instance->assets->GetTexture("starproj")) { // Check if this is the star texture
-            // Assuming a fixed update rate (e.g., 60 FPS)
-            const float timeStep = 1.0f / 60.0f; // Or get actual delta time
-            angle += rotationSpeed * timeStep;
-            if (angle >= 360.0) angle -= 360.0; // Keep angle within 0-360
-        } else {
-            angle = 0.0; // Reset angle for non-rotating sprites
+// --- Projectile Spinning Logic ---
+        // Determine if this projectile should spin
+        bool shouldSpin = false;
+        if (entity && entity->hasComponent<ProjectileComponent>()) {
+            shouldSpin = entity->getComponent<ProjectileComponent>().isSpinning;
+            // --- DEBUG LOG ---
+            // bool isBossProj = false;
+            // if (Game::instance && Game::instance->assets && texture == Game::instance->assets->GetTexture("boss_projectile")) { // Added null checks
+            //     isBossProj = true;
+            //     std::cout << "[DEBUG] SpriteComponent::update: Boss Projectile found. isSpinning flag = " << (shouldSpin ? "true" : "false") << std::endl;
+            // }
+            // --- END DEBUG LOG ---
         }
+
+        // *** ADDED the missing 'if' condition here ***
+        if (shouldSpin) {
+            // Calculate the angle update only if it should spin
+            const float timeStep = 1.0f / 60.0f; // Assuming 60 FPS target
+            angle += rotationSpeed * timeStep;
+            if (angle >= 360.0) angle -= 360.0;
+
+            // --- DEBUG LOG ---
+            // if (isBossProj) { // isBossProj needs to be declared in the debug block above if you uncomment this
+            //     std::cout << "[DEBUG] SpriteComponent::update: Boss Projectile spinning. New Angle: " << angle << std::endl;
+            // }
+            // --- END DEBUG LOG ---
+
+        } else {
+            // Reset angle to 0 if it shouldn't be spinning
+            // (Only assign if it's not already 0 to avoid redundant work)
+            if (angle != 0.0) {
+                angle = 0.0;
+                // --- DEBUG LOG ---
+                // if (isBossProj) { // isBossProj needs to be declared in the debug block above if you uncomment this
+                //    std::cout << "[DEBUG] SpriteComponent::update: Boss Projectile stopped spinning. Angle reset." << std::endl;
+                // }
+                // --- END DEBUG LOG ---
+            }
+        }
+        // --- End Projectile Spinning Logic ---
     }
 
     void draw() override {
@@ -153,6 +190,20 @@ public:
             }
         }
 
+        // --- DEBUG LOG ---
+    bool isBossProj = false;
+    if (entity && entity->hasComponent<ProjectileComponent>() && texture == Game::instance->assets->GetTexture("boss_projectile")){
+        isBossProj = true;
+        // Log only for the boss projectile, and maybe less frequently (e.g., every 60 frames)
+        // static int frameCount = 0;
+        // if (frameCount % 60 == 0) {
+        //     std::cout << "[DEBUG] SpriteComponent::draw: Drawing Boss Projectile. Angle passed: " << angle << std::endl;
+        // }
+        // frameCount++;
+    }
+    // --- END DEBUG LOG ---
+
+
         SDL_SetTextureColorMod(texture, currentTint.r, currentTint.g, currentTint.b);
         TextureManager::Draw(texture, srcRect, destRect, angle, spriteFlip); // Pass the angle
 
@@ -163,11 +214,28 @@ public:
     void Play(const char* animName){
         // Check if the animation exists before trying to access it
         if (animations.count(animName)) {
-            frames = animations[animName].frames;
-            animIndex = animations[animName].index;
-            speed = animations[animName].speed;
+            const Animation& anim = animations[animName]; // Get reference
+            // Check if the requested animation is already playing with the same parameters
+            // This prevents resetting the animation cycle unnecessarily every frame
+            if (this->animIndex != anim.index || this->frames != anim.frames || this->speed != anim.speed) {
+                 this->frames = anim.frames;
+                 this->animIndex = anim.index; // Sets the ROW
+                 this->speed = anim.speed;
+                 // std::cout << "Playing animation: " << animName << " (Index: " << animIndex << ", Frames: " << frames << ", Speed: " << speed << ")" << std::endl; // Debug log
+            }
         } else {
             std::cerr << "Warning: Animation '" << animName << "' not found in SpriteComponent!" << std::endl;
+            // Optionally default to a known animation like "Idle" or "Walk" if available
+            // if (animations.count("Walk")) {
+            //     const Animation& defaultAnim = animations["Walk"];
+            //     this->frames = defaultAnim.frames;
+            //     this->animIndex = defaultAnim.index;
+            //     this->speed = defaultAnim.speed;
+            // } else {
+                 this->frames = 1; // Fallback to single frame
+                 this->animIndex = 0;
+                 this->speed = 10000; // Very slow speed
+            // }
         }
     }
 

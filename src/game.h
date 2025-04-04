@@ -167,7 +167,8 @@ class Game {
         void initializeEnemyDatabase();
         void updateSpawnPoolAndWeights();
         EnemySpawnInfo* selectEnemyBasedOnWeight();
-
+        void spawnBossNearPlayer(); // <<< ADD THIS DECLARATION
+        void spawnBoss(); // <<< RENAMED Declaration
     private:
         // Private methods
         void changeMusicVolume(int delta);

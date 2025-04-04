@@ -46,47 +46,47 @@ const char* const skeletonShieldSprite = "sprites/enemy/skeleton_shield.png"; //
 
 // Aligator
 const int aligator1Health = 100;
-const int aligator1Damage = 10;
+const int aligator1Damage = 40;
 const float aligator1Speed = 1.0f;
-const int aligator1Exp = 10;
+const int aligator1Exp = 30;
 const int aligator2Health = 150; // Example upgrade stats
-const int aligator2Damage = 15;
+const int aligator2Damage = 80;
 const float aligator2Speed = 1.1f;
-const int aligator2Exp = 15;
+const int aligator2Exp = 70;
 
 // Bear
 const int bear1Health = 150;
-const int bear1Damage = 15;
+const int bear1Damage = 40;
 const float bear1Speed = 1.0f;
-const int bear1Exp = 20;
+const int bear1Exp = 30;
 const int bear2Health = 220; // Example upgrade stats
-const int bear2Damage = 22;
+const int bear2Damage = 80;
 const float bear2Speed = 1.0f;
-const int bear2Exp = 30;
+const int bear2Exp = 70;
 
 // Ina
 const int ina1Health = 80;
 const int ina1Damage = 8;
-const float ina1Speed = 1.0f;
-const int ina1Exp = 12;
+const float ina1Speed = 1.7f;
+const int ina1Exp = 20;
 const int ina2Health = 120; // Example upgrade stats
 const int ina2Damage = 12;
-const float ina2Speed = 1.1f;
-const int ina2Exp = 18;
+const float ina2Speed = 1.7f;
+const int ina2Exp = 30;
 const int ina3Health = 180; // Example upgrade stats
 const int ina3Damage = 18;
-const float ina3Speed = 1.2f;
-const int ina3Exp = 25;
+const float ina3Speed = 1.7f;
+const int ina3Exp = 40;
 
 // KFC
-const int kfc1Health = 120;
+const int kfc1Health = 50;
 const int kfc1Damage = 12;
-const float kfc1Speed = 1.0f;
-const int kfc1Exp = 15;
-const int kfc2Health = 180; // Example upgrade stats
+const float kfc1Speed = 3.0f;
+const int kfc1Exp = 20;
+const int kfc2Health = 100; // Example upgrade stats
 const int kfc2Damage = 18;
-const float kfc2Speed = 1.0f;
-const int kfc2Exp = 22;
+const float kfc2Speed = 3.0f;
+const int kfc2Exp = 30;
 
 // Skeleton
 const int skeleton1Health = 90;
@@ -98,28 +98,45 @@ const int skeleton2Damage = 14;
 const float skeleton2Speed = 1.1f;
 const int skeleton2Exp = 20;
 // Add skeleton3, 4, 5 stats...
-const int skeleton3Health = 180; const int skeleton3Damage = 18; const float skeleton3Speed = 1.1f; const int skeleton3Exp = 26;
-const int skeleton4Health = 240; const int skeleton4Damage = 22; const float skeleton4Speed = 1.2f; const int skeleton4Exp = 32;
-const int skeleton5Health = 300; const int skeleton5Damage = 26; const float skeleton5Speed = 1.2f; const int skeleton5Exp = 40;
+const int skeleton3Health = 180; const int skeleton3Damage = 30; const float skeleton3Speed = 1.1f; const int skeleton3Exp = 26;
+const int skeleton4Health = 240; const int skeleton4Damage = 40; const float skeleton4Speed = 1.2f; const int skeleton4Exp = 32;
+const int skeleton5Health = 300; const int skeleton5Damage = 50; const float skeleton5Speed = 1.2f; const int skeleton5Exp = 40;
 
 
 // Skeleton Shield Variants (Treat as separate types or upgrades)
-const int skeletonShieldHealth = 150; // Example
-const int skeletonShieldDamage = 15;
+const int skeletonShieldHealth = 500; // Example
+const int skeletonShieldDamage = 10;
 const float skeletonShieldSpeed = 0.9f;
-const int skeletonShieldExp = 18;
-const int eliteSkeletonShieldHealth = 350; // Example
-const int eliteSkeletonShieldDamage = 25;
+const int skeletonShieldExp = 50;
+const int eliteSkeletonShieldHealth = 800; // Example
+const int eliteSkeletonShieldDamage = 10;
 const float eliteSkeletonShieldSpeed = 0.8f;
-const int eliteSkeletonShieldExp = 45;
+const int eliteSkeletonShieldExp = 100;
 
 
 // Zombie
-const int zombieHealth = 110;
-const int zombieDamage = 12;
+const int zombieHealth = 60;
+const int zombieDamage = 10;
 const float zombieSpeed = 1.0f;
-const int zombieExp = 1;
+const int zombieExp = 5;
 
+// --- BOSS SETTINGS ---
+const int BOSS_SPRITE_WIDTH = 110; // As requested
+const int BOSS_SPRITE_HEIGHT = 110; // As requested
+const int BOSS_HEALTH = 1000; // Example health
+const float BOSS_SPEED = 1.5f; // Example speed
+const int BOSS_SLAM_DAMAGE = 50; // Example slam damage
+const int BOSS_PROJECTILE_DAMAGE = 15; // Example projectile damage
+const float BOSS_KNOCKBACK_FORCE = 40.0f; // Example knockback force
+const int BOSS_PROJECTILE_SIZE = 46; // Example size
+const float BOSS_PROJECTILE_SPEED = 2.0f; // Example speed
+const int BOSS_PROJECTILE_PIERCE = 5; // Example pierce
+
+const char* const bossWalkSprite = "sprites/enemy/boss_walk.png";
+const char* const bossChargeSprite = "sprites/enemy/boss_charge.png";
+const char* const bossSlamSprite = "sprites/enemy/boss_slam.png";
+const char* const bossProjectileSprite = "sprites/projectile/boss_proj.png";
+// --- END BOSS SETTINGS ---
 
 //MAP SETTINGS
 const int TILE_SIZE = 32;
