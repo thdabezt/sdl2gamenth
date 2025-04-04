@@ -1,32 +1,38 @@
 #pragma once
 
+// --- Includes ---
 #include "ECS.h"
-#include "Components.h"
-#include <iostream>
+#include "Components.h" // Includes TransformComponent, ColliderComponent indirectly
 
-// Forward declare needed components
-class TransformComponent;
-class ColliderComponent;
-class Player;
 
+
+// --- Class Definition ---
+
+// Represents an experience orb dropped by enemies, collected by the player on collision.
 class ExpOrbComponent : public Component {
 private:
-    bool initialized = false; // <<< ADD Initialization Flag
+    // --- Private Members ---
+    bool initialized = false; // Initialization flag
 
 public:
-    int experienceAmount;
+    // --- Public Members ---
+    int experienceAmount; // Amount of experience this orb grants
 
     // Pointers to components on the same entity (orb)
     TransformComponent* transform = nullptr;
     ColliderComponent* collider = nullptr;
-    bool collected = false;
 
-    // Keep inline constructor definition here
+    bool collected = false; // Flag indicating if the orb has been collected
+
+    // --- Constructor ---
+    // Initializes the experience amount for the orb.
     ExpOrbComponent(int exp) : experienceAmount(exp) {}
 
-    // Declarations for methods defined in .cpp
+    // --- Public Methods ---
+
+    // Component Lifecycle Overrides (Declarations only, definitions in .cpp)
     void init() override;
     void update() override;
 
-    // void draw() override; // Optional draw method
-};
+
+}; // End ExpOrbComponent class

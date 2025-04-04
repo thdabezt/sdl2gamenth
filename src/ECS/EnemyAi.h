@@ -1,46 +1,63 @@
 #pragma once
+
+// --- Includes ---
 #include "ECS.h"
 #include "../Collision.h"
 #include "../Vector2D.h"
-#include "../game.h"
-#include "Components.h"
-#include <iostream> // For error logging
+#include "../game.h"      // For Game::instance, Game::camera
+#include "Components.h"  // Includes TransformComponent, ColliderComponent, SpriteComponent, HealthComponent
+#include <iostream>      // For std::cerr error logging
+#include <SDL_rect.h>    // For SDL_Rect
+#include <SDL_timer.h>   // For SDL_GetTicks, Uint32
 
+// --- Forward Declarations ---
+class TransformComponent;
+class ColliderComponent;
+class SpriteComponent;
+class HealthComponent;
+
+// --- Class Definition ---
+
+// Basic Enemy AI: Follows the player within a detection range and applies contact damage.
 class EnemyAIComponent : public Component {
 private:
-    TransformComponent* transform = nullptr; // Enemy's transform
-    ColliderComponent* collider = nullptr;   // Enemy's collider
-    SpriteComponent* sprite = nullptr;       // Enemy's sprite (optional)
+    // --- Private Members ---
+    TransformComponent* transform = nullptr;
+    ColliderComponent* collider = nullptr;
+    SpriteComponent* sprite = nullptr;
+
     SDL_Rect detectionRect;
     int detectionRange;
     float speed;
-
-    // Contact damage properties
     int contactDamage;
-    Uint32 lastDamageTime = 0;
-    const Uint32 damageInterval = 1000;
     int expValue;
 
-    // --- Player Data Pointers ---
-    Vector2D* playerPosition = nullptr; // Pointer to the player's COLLIDER position
-    Entity* playerEntity = nullptr;     // Pointer to the player entity (for damage/checks)
+    Uint32 lastDamageTime = 0;
+    const Uint32 damageInterval = 1000; // ms
+    bool initialized = false;
 
-    bool initialized = false; // <<< ADD Initialization Flag
+    Vector2D* playerPosition = nullptr; // Pointer to the player's Transform position
+    Entity* playerEntity = nullptr;
 
 public:
-    EnemyAIComponent(int range, float moveSpeed, Vector2D* playerColliderPosPtr, int damage = 10, int exp = 1, Entity* player = nullptr)
-        : detectionRange(range),
-          speed(moveSpeed),
-          playerPosition(playerColliderPosPtr),
-          contactDamage(damage),
-          expValue(exp),
+    // --- Constructor ---
+    EnemyAIComponent(int range, float moveSpeed, Vector2D* playerTransformPosPtr, int damage = 10, int exp = 1, Entity* player = nullptr)
+        : detectionRange(range > 0 ? range : 100),
+          speed(moveSpeed >= 0.0f ? moveSpeed : 1.0f),
+          playerPosition(playerTransformPosPtr),
+          contactDamage(damage > 0 ? damage : 1),
+          expValue(exp >= 0 ? exp : 0),
           playerEntity(player) {}
 
-    int getExpValue() const { return expValue; }
-    void setExpValue(int value) { expValue = value; }
+    // --- Public Methods ---
 
+    // Getters/Setters for Exp Value
+    int getExpValue() const { return expValue; }
+    void setExpValue(int value) { expValue = std::max(0, value); }
+
+    // Component Lifecycle Overrides
     void init() override {
-         initialized = false; // Reset flag
+         initialized = false;
          if (!entity) { std::cerr << "Error in EnemyAIComponent::init: Entity is null!" << std::endl; return; }
 
         if (!entity->hasComponent<TransformComponent>()) { std::cerr << "Error in EnemyAIComponent::init: Enemy entity missing TransformComponent!" << std::endl; return; }
@@ -60,39 +77,28 @@ public:
         detectionRect.w = collider->collider.w + detectionRange * 2;
         detectionRect.h = collider->collider.h + detectionRange * 2;
 
-        initialized = true; // <<< SET Flag on success
+        initialized = true;
     }
 
     void update() override {
-        if (!initialized) return; // <<< CHECK Flag
-        // Keep internal checks too
-        if (!transform || !collider || !playerPosition || !playerEntity ) return;
-        if (!playerEntity->isActive() || !playerEntity->hasComponent<ColliderComponent>() || !playerEntity->hasComponent<HealthComponent>()) return;
+        if (!initialized || !transform || !collider || !playerPosition || !playerEntity) return;
 
-
-        // --- Get Player's ACTUAL Transform position (if available) ---
-        Vector2D playerActualPos;
-        if(playerEntity && playerEntity->hasComponent<TransformComponent>()) {
-            playerActualPos = playerEntity->getComponent<TransformComponent>().position;
-            // Optional: Adjust to player center if needed
-            // playerActualPos.x += playerEntity->getComponent<TransformComponent>().width * playerEntity->getComponent<TransformComponent>().scale / 2.0f;
-            // playerActualPos.y += playerEntity->getComponent<TransformComponent>().height * playerEntity->getComponent<TransformComponent>().scale / 2.0f;
-        } else {
-            // Fallback or error handling if player transform is missing
-            playerActualPos = *playerPosition; // Use the old pointer as fallback? Risky.
-            // Or maybe stop movement: transform->velocity.Zero(); return;
+        if (!playerEntity->isActive() || !playerEntity->hasComponent<ColliderComponent>() || !playerEntity->hasComponent<HealthComponent>() || !playerEntity->hasComponent<TransformComponent>()) {
+            transform->velocity.Zero();
+            return;
         }
-        // --- End Get Player Position ---
+
+        Vector2D playerActualPos = playerEntity->getComponent<TransformComponent>().position;
+        SDL_Rect playerColRect = playerEntity->getComponent<ColliderComponent>().collider;
 
         // Update detection rect position
-        detectionRect.x = collider->collider.x - (detectionRect.w - collider->collider.w) / 2;
-        detectionRect.y = collider->collider.y - (detectionRect.h - collider->collider.h) / 2;
+        detectionRect.x = collider->collider.x - detectionRange;
+        detectionRect.y = collider->collider.y - detectionRange;
 
-        // --- Apply Contact Damage ---
-        SDL_Rect playerColRect = playerEntity->getComponent<ColliderComponent>().collider;
+        // Apply Contact Damage
         if (Collision::AABB(collider->collider, playerColRect)) {
             Uint32 currentTime = SDL_GetTicks();
-            if (currentTime > lastDamageTime + damageInterval) {
+            if (currentTime >= lastDamageTime + damageInterval) {
                 playerEntity->getComponent<HealthComponent>().takeDamage(contactDamage);
                 lastDamageTime = currentTime;
                  if (playerEntity->hasComponent<SpriteComponent>()) {
@@ -103,41 +109,53 @@ public:
         }
 
         // --- Movement AI ---
-        SDL_Rect playerRect = {static_cast<int>(playerPosition->x), static_cast<int>(playerPosition->y), 32, 32};
-        if (Collision::AABB(playerRect, detectionRect)) {
+        if (Collision::AABB(playerColRect, detectionRect)) {
+            // Player detected, move towards them
             Vector2D direction = playerActualPos - transform->position;
-            direction = direction.Normalize();
-
+            // Prevent division by zero if enemy is exactly on player pos
+            if (direction.x != 0.0f || direction.y != 0.0f) {
+                 direction = direction.Normalize();
+            } else {
+                direction.Zero(); // Or maybe a small default vector?
+            }
             transform->velocity = direction * speed;
-            
-            // Update sprite flip based on movement direction (if sprite exists)
+
+            // Update sprite flip based on movement direction
             if (sprite) {
-                // Flip sprite based on horizontal movement
-                if (transform->velocity.x < 0) {
-                    sprite->spriteFlip = SDL_FLIP_HORIZONTAL; // Moving left
-                } else if (transform->velocity.x > 0) {
-                    sprite->spriteFlip = SDL_FLIP_NONE; // Moving right
+                if (transform->velocity.x < -0.01f) {
+                    sprite->spriteFlip = SDL_FLIP_HORIZONTAL;
+                } else if (transform->velocity.x > 0.01f) {
+                    sprite->spriteFlip = SDL_FLIP_NONE;
                 }
             }
         } else {
+            // Player outside detection range, stop moving
             transform->velocity.Zero();
         }
 
+        // Update position based on velocity calculated by this component
         transform->position.x += transform->velocity.x;
         transform->position.y += transform->velocity.y;
+
     }
 
     void draw() override {
-        // if (!initialized) return; // Optional check
-        bool debug = false;
-        if (!debug || !Game::renderer || !collider) return;
+        // Optional debug drawing
+        bool debug_draw = false;
+        if (!debug_draw || !initialized || !Game::renderer || !collider) return;
 
-        SDL_SetRenderDrawColor(Game::renderer, 255, 255, 255, 255);
-        SDL_Rect debugDetection = { detectionRect.x - Game::camera.x, detectionRect.y - Game::camera.y, detectionRect.w, detectionRect.h };
-        SDL_RenderDrawRect(Game::renderer, &debugDetection);
-        SDL_SetRenderDrawColor(Game::renderer, 255, 255, 255, 255);
+        SDL_SetRenderDrawColor(Game::renderer, 0, 255, 255, 100); // Cyan, semi-transparent
+        SDL_Rect debugDetectionRect = {
+            detectionRect.x - Game::camera.x,
+            detectionRect.y - Game::camera.y,
+            detectionRect.w,
+            detectionRect.h
+        };
+        SDL_RenderDrawRect(Game::renderer, &debugDetectionRect);
     }
 
+    // Getters/Setters for Contact Damage
     int getContactDamage() const { return contactDamage; }
-    void setContactDamage(int damage) { contactDamage = damage; }
-};
+    void setContactDamage(int damage) { contactDamage = std::max(0, damage); }
+
+}; // End EnemyAIComponent class

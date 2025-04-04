@@ -1,94 +1,105 @@
 #pragma once
 
-// #define _USE_MATH_DEFINES // Not needed if using acos
-#include <cmath>
-#include <string>
-#include <vector>
-#include <cstdlib>
-#include <ctime>
-#include <SDL.h>
-
-#include "ECS.h"
+// --- Includes ---
+#include "ECS.h" // Includes Component base class
 #include "../Vector2D.h"
-#include <iostream> // For logging
+#include <string>
+#include <vector>   // Often needed for ECS headers
+#include <cmath>    // For math constants/functions if used inline (like PI)
+#include <SDL_stdinc.h> // For Uint32
 
 // --- Forward Declarations ---
 class TransformComponent;
 class SoundComponent;
-// -----------------------------
 
+// --- Enums ---
 enum class SpellTrajectory {
     RANDOM_DIRECTION,
     SPIRAL
+    // Add other trajectories here if needed
 };
+
+// --- Class Definition ---
 
 class SpellComponent : public Component {
 private:
-    bool initialized = false; // <<< ADD Initialization Flag
-    int level = 0;
-    int burstShotsRemaining = 0;
-    Uint32 nextBurstShotTime = 0;
-    // --- ADDED method declarations ---
-    void castSingleProjectile();
-    void castSpellFull(); // Renamed original cast method
-    // --- END ADDED method declarations ---
-public:
-    // --- Properties ---
-    std::string tag;
-    int damage;
-    int cooldown;
-    float projectileSpeed;
-    int projectilesPerCast;
-    int projectileSize;
-    std::string projectileTexture;
-    int duration;
-    SpellTrajectory trajectoryMode;
-    float spiralGrowthRate;
-    int projectilePierce = 1;
-    int burstDelay = 75;
-    
-    // --- State / Pointers (Initialize) ---
+    // --- Private Members ---
+    bool initialized = false;     // Initialization flag
+    int level = 0;                // Current upgrade level of the spell
+    int burstShotsRemaining = 0; // Shots left in the current burst
+    Uint32 nextBurstShotTime = 0; // Time the next shot in burst can fire
+
+    // Pointers to other components (set in init)
     TransformComponent* transform = nullptr;
     SoundComponent* sound = nullptr;
-    Uint32 lastCastTime = 0;
-    float spiralAngle = 0.0f;
 
-    
+    // --- Private Methods ---
+    // Internal helper to create projectile entities via AssetManager
+    void createProjectile(Vector2D position, Vector2D velocity);
+    // Internal helper to cast a single projectile (used by burst logic)
+    void castSingleProjectile();
+    // Internal helper for casting all projectiles at once (e.g., for non-burst modes)
+    void castSpellFull(); // Renamed original cast method
 
+
+public:
+    // --- Public Members (Spell Properties) ---
+    std::string tag;             // Identifier (e.g., "fire_vortex", "starfall")
+    int damage;                  // Damage per projectile tick/hit
+    int cooldown;                // Milliseconds between casts/burst starts
+    float projectileSpeed;
+    int projectilesPerCast;    // Number of projectiles created per cast action/burst sequence
+    int projectileSize;
+    std::string projectileTexture; // Asset ID for the projectile's texture
+    int duration;                // Duration of the projectile/effect (if applicable)
+    SpellTrajectory trajectoryMode; // How the projectile(s) move
+    float spiralGrowthRate;      // Rate at which spiral radius increases (if SPIRAL mode)
+    int projectilePierce = 1;    // How many enemies a projectile can pass through
+    int burstDelay = 75;         // Milliseconds between shots within a burst
+
+    // State Variables
+    Uint32 lastCastTime = 0;       // Timestamp of the last cast/burst start
+    float spiralAngle = 0.0f;      // Current angle for SPIRAL trajectory
+
+    // --- Constructor ---
+    // Creates a spell component with specified properties.
     SpellComponent(std::string spellTag, int dmg, int cool, float speed,
-        int count, int size, std::string texId, SpellTrajectory mode,
-        float growthRate = 5.0f, int pierce = 9999);
+                   int count, int size, std::string texId, SpellTrajectory mode,
+                   float growthRate = 5.0f, int pierce = 1); // Default args for growth/pierce
 
-    // --- Update Method Declarations ---
-    void increaseDamage(int amount) { damage += amount; }
-    void decreaseCooldown(int amount) { cooldown = std::max(50, cooldown - amount); }
-    void increaseProjectileSpeed(float amount) { projectileSpeed += amount; }
-    void increaseProjectileCount(int amount) { projectilesPerCast += amount; }
-    void increaseProjectileSize(int amount) { projectileSize += amount; }
-    void increasePierce(int amount) { projectilePierce += amount; }
+    // --- Public Methods ---
 
-    void decreaseCooldownPercentage(float percent);
-    // Get properties
-    std::string getTag() const { return tag; }
-    int getDamage() const { return damage; }
-    int getCooldown() const { return cooldown; }
-    float getProjectileSpeed() const { return projectileSpeed; }
-    int getProjectileSize() const { return projectileSize; }
-    int getPierce() const { return projectilePierce; }
-    int getProjectileCount() const { return projectilesPerCast; }
-    int getDuration() const { return duration; }
-
-    // --- ADD LEVEL METHODS ---
-    int getLevel() const { return level; }
-    void setLevel(int newLevel) { level = std::max(0, newLevel); } // Setter for loading
-    void incrementLevel() { level++; } // Increments the level
-    // --- END LEVEL METHODS ---
-
-    // Init/Update/Cast declarations, definitions in .cpp
+    // Component Lifecycle Overrides (Declarations only)
     void init() override;
     void update() override;
-    void castSpell();
+    // void draw() override; // No draw method defined for SpellComponent currently
 
-private:
-    void createProjectile(Vector2D position, Vector2D velocity);
-};
+    // Core Spell Action (Declaration only)
+    void castSpell(); // This might trigger a burst or a full cast depending on logic in update
+
+    // Property Modifiers (Declarations only)
+    void increaseDamage(int amount);
+    void decreaseCooldown(int amount); // Reduces cooldown time by fixed amount
+    void decreaseCooldownPercentage(float percent); // Reduces cooldown time by percentage
+    void increaseProjectileSpeed(float amount);
+    void increaseProjectileCount(int amount); // Increases projectiles per cast/burst
+    void increaseProjectileSize(int amount);
+    void increasePierce(int amount);
+
+
+    // Getters (Declarations only)
+    std::string getTag() const;
+    int getDamage() const;
+    int getCooldown() const;
+    float getProjectileSpeed() const;
+    int getProjectileSize() const;
+    int getPierce() const;
+    int getProjectileCount() const;
+    int getDuration() const; // Add if duration is used
+
+    // Level Management (Declarations only)
+    int getLevel() const;
+    void setLevel(int newLevel); // Setter mainly for loading state
+    void incrementLevel();       // Call when spell is upgraded
+
+}; // End SpellComponent class

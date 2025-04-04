@@ -1,242 +1,196 @@
 #pragma once
 
-#include "Components.h"
+// --- Includes ---
+#include "Components.h" // Includes ECS.h, TransformComponent.h indirectly
 #include <SDL.h>
-#include "../TextureManager.h"
-#include "Animation.h"
 #include <map>
+#include <string>
+#include <iostream> // For std::cerr
+#include "../TextureManager.h"
 #include "../AssetManager.h"
-#include "../game.h" // Include game.h for Game::instance
-#include <iostream> // For error logging
-#include "ProjectileComponent.h"
+#include "Animation.h"
+#include "../game.h" // For Game::instance, Game::camera
+#include "ProjectileComponent.h" // For checking spin flag
 
+// --- Forward Declarations ---
+class TransformComponent; // Already included via Components.h, but explicit is fine
+
+// --- Class Definition ---
 
 class SpriteComponent : public Component {
 private:
-    TransformComponent *transform = nullptr; // Initialize to nullptr
-    SDL_Texture *texture = nullptr;          // Initialize to nullptr
-    SDL_Rect srcRect, destRect;
+    // --- Private Members ---
+    TransformComponent *transform = nullptr;
+    SDL_Texture *texture = nullptr;
+    SDL_Rect srcRect = {0, 0, 0, 0};
+    SDL_Rect destRect = {0, 0, 0, 0};
 
     bool animated = false;
     int frames = 0;
-    
-
-    bool initialized = false; // <<< ADD Initialization Flag
+    bool initialized = false;
 
 public:
-    int speed = 100; //ms
+    // --- Public Members ---
 
+    // Animation & Appearance
+    int speed = 100; // Animation speed (ms per frame)
+    int animIndex = 0; // Current animation row index
+    std::map<const char*, Animation> animations;
+    SDL_RendererFlip spriteFlip = SDL_FLIP_NONE;
+    SDL_Color tint = {255, 255, 255, 255}; // Color modulation
+
+    // Rotation
+    double angle = 0.0;         // Rotation angle in degrees
+    float rotationSpeed = 180.0f; // Degrees per second
+
+    // Hit Effect
     bool isHit = false;
     Uint32 hitTime = 0;
-    Uint32 hitDuration = 150; // Flash duration in milliseconds
-    SDL_Color tint = {255, 255, 255, 255}; // Add this line to declare the tint variable
-    // Add this getter method if it doesn't exist yet
-    SDL_Texture* getTexture() {
-        return texture;
-    }
-    double angle = 0.0; // Angle in degrees for rotation
-    float rotationSpeed = 180.0f; // Degrees per second (adjust as needed)
+    Uint32 hitDuration = 150; // ms
 
-    int animIndex = 0;
-
-    std::map<const char*, Animation> animations;
-
-    SDL_RendererFlip spriteFlip = SDL_FLIP_NONE;
-
-
+    // --- Constructors ---
     SpriteComponent() = default;
-    SpriteComponent(std::string id){
-        setTex(id);
-    }
-    SpriteComponent(std::string id, bool isAnimated){
-        animated = isAnimated;
-        Animation idle = Animation(0, 3, 200);
-        Animation walk = Animation(1, 6, 200);
 
+    SpriteComponent(std::string id) {
+        setTex(id); // Call setTex from constructor
+    }
+
+    SpriteComponent(std::string id, bool isAnimated) {
+        animated = isAnimated;
+        // Define default animations if needed
+        Animation idle = Animation(0, 3, 200); // Example: row 0, 3 frames, 200ms/frame
+        Animation walk = Animation(1, 6, 200); // Example: row 1, 6 frames, 200ms/frame
         animations.emplace("Idle", idle);
         animations.emplace("Walk", walk);
 
-        Play("Idle");
-
-        setTex(id);
+        Play("Idle"); // Start with Idle animation
+        setTex(id);   // Load the texture
     }
 
-    ~SpriteComponent() {
-        // Texture is managed by AssetManager, no need to destroy here generally
+    // --- Destructor ---
+    ~SpriteComponent() override {
+        // Texture pointers ('texture') are managed by AssetManager, so no SDL_DestroyTexture here.
     }
-    void setTex(std::string id){ {
-        // Use Game::instance to access the non-static assets pointer
-        // Add null check for gameInstance and assets
-        if (Game::instance && Game::instance->assets) {
-             texture = Game::instance->assets->GetTexture(id);
-        } else {
-            std::cerr << "Error in SpriteComponent::setTex: Game::instance or Game::instance->assets is null!" << std::endl;
-            texture = nullptr; // Ensure texture is null if assets couldn't be accessed
-        }
-    }}
 
+    // --- Public Methods ---
+
+    // Component Lifecycle Overrides
     void init() override {
-        initialized = false; // Reset flag at start of init
-        // Ensure the entity exists before proceeding
+        initialized = false; // Reset flag
         if (!entity) {
             std::cerr << "Error in SpriteComponent::init: Entity is null!" << std::endl;
             return;
         }
-
-        // Check if the entity has the required TransformComponent
         if (!entity->hasComponent<TransformComponent>()) {
              std::cerr << "Error in SpriteComponent::init: Entity missing TransformComponent!" << std::endl;
-             return; // Cannot initialize without TransformComponent
-        }
-
-        // Get the TransformComponent
-        transform = &entity->getComponent<TransformComponent>();
-
-        // --- ADD NULL CHECK for transform pointer ---
-        if (!transform) {
-            std::cerr << "Error in SpriteComponent::init: Failed to get TransformComponent pointer (is null)!" << std::endl;
              return;
         }
-        // --- End NULL CHECK ---
+        transform = &entity->getComponent<TransformComponent>();
+        if (!transform) {
+            std::cerr << "Error in SpriteComponent::init: Failed to get TransformComponent pointer!" << std::endl;
+             return;
+        }
 
-
-        // Now it's safe to access transform members
+        // Initialize source rectangle based on transform's initial size
         srcRect.x = srcRect.y = 0;
         srcRect.w = transform->width;
         srcRect.h = transform->height;
 
-        // If all checks passed and setup complete:
-        initialized = true; // <<< SET Flag to true only on success
+        initialized = true; // Set flag on successful initialization
     }
 
     void update() override {
-        if (!initialized) return; // <<< CHECK Flag at start of update
-        // Keep internal null checks too
-        if (!transform) return;
+        if (!initialized || !transform) return; // Check initialization and required pointers
 
-        if(animated){
+        // Update animation frame if animated
+        if (animated && frames > 0 && speed > 0) {
             srcRect.x = srcRect.w * static_cast<int>((SDL_GetTicks() / speed) % frames);
-        }
-        // Ensure animIndex is valid and transform height is non-zero before division/multiplication
-        if (transform->height > 0) {
-            srcRect.y = animIndex * transform->height;
-        } else {
-            srcRect.y = 0; // Default if height is invalid
+        } else if (!animated) {
+             srcRect.x = 0; // Ensure static sprites use the first frame
         }
 
-        destRect.x = static_cast<int>(transform->position.x) - Game::camera.x;
-        destRect.y = static_cast<int>(transform->position.y) - Game::camera.y;
+        // Set animation row (vertical position in spritesheet)
+        // Ensure height is positive to avoid division by zero or negative index
+        srcRect.y = (transform->height > 0) ? (animIndex * transform->height) : 0;
+
+        // Update destination rectangle for rendering
+        destRect.x = static_cast<int>(transform->position.x - Game::camera.x);
+        destRect.y = static_cast<int>(transform->position.y - Game::camera.y);
         destRect.w = transform->width * transform->scale;
         destRect.h = transform->height * transform->scale;
 
-// --- Projectile Spinning Logic ---
-        // Determine if this projectile should spin
+        // Handle projectile spinning logic
         bool shouldSpin = false;
-        if (entity && entity->hasComponent<ProjectileComponent>()) {
+        if (entity->hasComponent<ProjectileComponent>()) { // Null check for entity done by initialized check
             shouldSpin = entity->getComponent<ProjectileComponent>().isSpinning;
-            // --- DEBUG LOG ---
-            // bool isBossProj = false;
-            // if (Game::instance && Game::instance->assets && texture == Game::instance->assets->GetTexture("boss_projectile")) { // Added null checks
-            //     isBossProj = true;
-            //     std::cout << "[DEBUG] SpriteComponent::update: Boss Projectile found. isSpinning flag = " << (shouldSpin ? "true" : "false") << std::endl;
-            // }
-            // --- END DEBUG LOG ---
         }
 
-        // *** ADDED the missing 'if' condition here ***
         if (shouldSpin) {
-            // Calculate the angle update only if it should spin
-            const float timeStep = 1.0f / 60.0f; // Assuming 60 FPS target
+            const float timeStep = 1.0f / 60.0f; // Assuming ~60 FPS update rate
             angle += rotationSpeed * timeStep;
             if (angle >= 360.0) angle -= 360.0;
-
-            // --- DEBUG LOG ---
-            // if (isBossProj) { // isBossProj needs to be declared in the debug block above if you uncomment this
-            //     std::cout << "[DEBUG] SpriteComponent::update: Boss Projectile spinning. New Angle: " << angle << std::endl;
-            // }
-            // --- END DEBUG LOG ---
-
+            if (angle < 0.0) angle += 360.0; // Keep angle positive
         } else {
-            // Reset angle to 0 if it shouldn't be spinning
-            // (Only assign if it's not already 0 to avoid redundant work)
-            if (angle != 0.0) {
-                angle = 0.0;
-                // --- DEBUG LOG ---
-                // if (isBossProj) { // isBossProj needs to be declared in the debug block above if you uncomment this
-                //    std::cout << "[DEBUG] SpriteComponent::update: Boss Projectile stopped spinning. Angle reset." << std::endl;
-                // }
-                // --- END DEBUG LOG ---
-            }
+            angle = 0.0; // Ensure non-spinning sprites have angle 0
         }
-        // --- End Projectile Spinning Logic ---
     }
 
     void draw() override {
-         if (!initialized) return; // <<< CHECK Flag at start of draw (optional but safe)
+        if (!initialized || !texture || !transform) return; // Check required members
 
-         if (!texture) return;
-         if (!transform) return;
-
-        // Calculate the current tint color
-        SDL_Color currentTint = tint;
-
-        // If hit, apply red tint for this specific entity
+        // Determine tint (normal or hit effect)
+        SDL_Color currentTint = tint; // Start with default tint
         if (isHit) {
             if (SDL_GetTicks() > hitTime + hitDuration) {
-                isHit = false;
-                currentTint = {255, 255, 255, 255}; // Reset to normal color
+                isHit = false; // Hit duration expired
+                // currentTint remains default (or could be explicitly set to white)
             } else {
-                currentTint = {255, 100, 100, 255}; // Red tint
+                currentTint = {255, 100, 100, 255}; // Apply red tint
             }
         }
 
-        // --- DEBUG LOG ---
-    bool isBossProj = false;
-    if (entity && entity->hasComponent<ProjectileComponent>() && texture == Game::instance->assets->GetTexture("boss_projectile")){
-        isBossProj = true;
-        // Log only for the boss projectile, and maybe less frequently (e.g., every 60 frames)
-        // static int frameCount = 0;
-        // if (frameCount % 60 == 0) {
-        //     std::cout << "[DEBUG] SpriteComponent::draw: Drawing Boss Projectile. Angle passed: " << angle << std::endl;
-        // }
-        // frameCount++;
-    }
-    // --- END DEBUG LOG ---
-
-
+        // Apply tint and draw
         SDL_SetTextureColorMod(texture, currentTint.r, currentTint.g, currentTint.b);
-        TextureManager::Draw(texture, srcRect, destRect, angle, spriteFlip); // Pass the angle
-
-        SDL_SetTextureColorMod(texture, 255, 255, 255); // Reset
-        
+        TextureManager::Draw(texture, srcRect, destRect, angle, spriteFlip); // Use the Draw function handling rotation
+        SDL_SetTextureColorMod(texture, 255, 255, 255); // Reset tint for other draws
     }
 
-    void Play(const char* animName){
-        // Check if the animation exists before trying to access it
-        if (animations.count(animName)) {
-            const Animation& anim = animations[animName]; // Get reference
-            // Check if the requested animation is already playing with the same parameters
-            // This prevents resetting the animation cycle unnecessarily every frame
+    // Sets the texture from AssetManager using ID
+    void setTex(std::string id) {
+        if (Game::instance && Game::instance->assets) {
+             texture = Game::instance->assets->GetTexture(id);
+             if (!texture) {
+                 std::cerr << "Warning in SpriteComponent::setTex: Texture ID '" << id << "' not found in AssetManager!" << std::endl;
+             }
+        } else {
+            std::cerr << "Error in SpriteComponent::setTex: Game::instance or Game::instance->assets is null!" << std::endl;
+            texture = nullptr;
+        }
+    }
+
+    // Gets the raw SDL_Texture pointer
+    SDL_Texture* getTexture() {
+        return texture;
+    }
+
+    // Sets the current animation to play
+    void Play(const char* animName) {
+        auto it = animations.find(animName);
+        if (it != animations.end()) {
+            const Animation& anim = it->second; // Use found iterator
+            // Only update if different to prevent resetting animation cycle
             if (this->animIndex != anim.index || this->frames != anim.frames || this->speed != anim.speed) {
                  this->frames = anim.frames;
-                 this->animIndex = anim.index; // Sets the ROW
-                 this->speed = anim.speed;
-                 // std::cout << "Playing animation: " << animName << " (Index: " << animIndex << ", Frames: " << frames << ", Speed: " << speed << ")" << std::endl; // Debug log
+                 this->animIndex = anim.index;
+                 this->speed = anim.speed > 0 ? anim.speed : 100; // Ensure speed is positive
             }
         } else {
             std::cerr << "Warning: Animation '" << animName << "' not found in SpriteComponent!" << std::endl;
-            // Optionally default to a known animation like "Idle" or "Walk" if available
-            // if (animations.count("Walk")) {
-            //     const Animation& defaultAnim = animations["Walk"];
-            //     this->frames = defaultAnim.frames;
-            //     this->animIndex = defaultAnim.index;
-            //     this->speed = defaultAnim.speed;
-            // } else {
-                 this->frames = 1; // Fallback to single frame
-                 this->animIndex = 0;
-                 this->speed = 10000; // Very slow speed
-            // }
+            // Fallback to a non-animated state or a default animation if desired
+            this->frames = 1;
+            this->animIndex = 0;
+            this->speed = 100000; // Effectively static
         }
     }
 
-};
+}; // End SpriteComponent class

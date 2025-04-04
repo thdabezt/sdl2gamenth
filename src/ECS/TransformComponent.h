@@ -1,48 +1,60 @@
 #pragma once
-#include "Components.h"
-#include "../Vector2D.h"
-// #include "../constants.h"
+
+// --- Includes ---
+#include "Components.h" // Includes ECS.h indirectly
+#include "../Vector2D.h" // Explicit include for Vector2D
+
+// --- Struct Definition ---
+
+// Holds position, velocity, size, and scale data for an entity.
 struct TransformComponent : public Component {
-    public:
+public: // Struct members are public by default, added for clarity
+    // --- Public Members ---
+    Vector2D position; // Top-left position (world coordinates)
+    Vector2D velocity; // Change in position per update cycle
 
-        Vector2D position;
-        Vector2D velocity;
+    int height = 32;   // Default height
+    int width = 32;    // Default width
+    int scale = 1;     // Scaling factor
 
-        int speed = 3;
+    // --- Constructors ---
+    // Default constructor: Initializes position and velocity to zero.
+    TransformComponent() {
+        position.Zero();
+        velocity.Zero();
+    }
 
-        int height = 32;
-        int width = 32;
-        int scale = 1;
+    // Constructor with scale: Initializes position to default center, velocity to zero.
+    TransformComponent(int sc) : scale(sc) {
+        // Default position (center of typical screen, adjust if needed)
+        position.x = 400;
+        position.y = 320;
+        velocity.Zero();
+        // height and width use defaults
+    }
 
-        TransformComponent() {
-            position.Zero();
-        }
-        TransformComponent(int sc) {
-            position.x = 400;
-            position.y = 320;
-            scale = sc;
-        }
-        TransformComponent(float x, float y) {
-            position.Zero();
-        }
-        TransformComponent(float x, float y, int h, int w, float s) {
-            position.x = x;
-            position.y = y;
-            height = h;
-            width = w;
-            scale = s;
-        }
-        void init() override {
-            velocity.Zero();
-        }
-        void update() override {
-            // Only update position if there's actually movement
-            // The velocity vector received here should already be correctly
-            // normalized (if diagonal) and scaled by playerSpeed from KeyboardController
-            if (velocity.x != 0 || velocity.y != 0) {
-                position.x += velocity.x;
-                position.y += velocity.y;
-            }
-        }
+    // Constructor with position: Initializes velocity to zero, uses default size/scale.
+    TransformComponent(float x, float y) : position(x, y) {
+        velocity.Zero();
+        // height, width, scale use defaults
+    }
 
-};
+    // Full constructor: Initializes all members.
+    TransformComponent(float x, float y, int h, int w, float s)
+        : position(x, y), height(h), width(w), scale(static_cast<int>(s)) { // Ensure scale is int
+        velocity.Zero();
+    }
+
+    // --- Public Methods ---
+    // Initializes velocity to zero when the component is added.
+    void init() override {
+        velocity.Zero();
+    }
+
+    // Updates the position based on the current velocity.
+    void update() override {
+        position.x += velocity.x;
+        position.y += velocity.y;
+    }
+
+}; // End TransformComponent struct

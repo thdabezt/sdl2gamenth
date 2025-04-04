@@ -1,19 +1,35 @@
+// --- Includes ---
 #include <SDL.h>
-#include <iostream>
 #include <SDL_image.h>
 #include <SDL_ttf.h>
+#include <SDL_mixer.h>
+#include <iostream>
+#include <Windows.h> // For console setup
 #include "constants.h"
 #include "game.h"
-#include "Scene/SceneComponent.h"
-#include <Windows.h>
-#include <SDL_mixer.h>
-#define SDL_MAIN_HANDLED
+#include "Scene/SceneComponent.h" // Includes SceneManager.h, MenuScene.h, GameScene.h
 
-// --- ADDED: Global state for fullscreen toggle ---
-static SDL_Window* mainWindow = nullptr; // Pointer to the main window
-// --- END ADDED ---
+#define SDL_MAIN_HANDLED // Define before including SDL_main.h if needed, usually handled by SDL.h
 
-// --- ADDED: Toggle Function ---
+// --- Globals ---
+static SDL_Window* mainWindow = nullptr; // Global pointer for fullscreen toggle
+
+// --- Helper Functions ---
+
+// Initializes or attaches a console window for debugging output.
+void setupConsole() {
+    if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole()) {
+        FILE* pCout, * pCerr, * pCin;
+        freopen_s(&pCout, "CONOUT$", "w", stdout);
+        freopen_s(&pCerr, "CONOUT$", "w", stderr);
+        freopen_s(&pCin, "CONIN$", "r", stdin);
+        std::cout << "Console attached successfully!" << std::endl;
+    } else {
+        std::cerr << "Failed to setup console." << std::endl;
+    }
+}
+
+// Toggles the main window between windowed and fullscreen desktop modes.
 void toggleFullscreen() {
     if (!mainWindow) {
         std::cerr << "Error: mainWindow pointer is null in toggleFullscreen!" << std::endl;
@@ -24,150 +40,149 @@ void toggleFullscreen() {
     bool isFullscreen = (currentFlags & SDL_WINDOW_FULLSCREEN_DESKTOP) || (currentFlags & SDL_WINDOW_FULLSCREEN);
 
     if (isFullscreen) {
-        // Switch to Windowed Mode (800x600)
-        SDL_SetWindowFullscreen(mainWindow, 0); // Turn off fullscreen first
-        SDL_SetWindowSize(mainWindow, 800, 600);
-        SDL_SetWindowPosition(mainWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED); // Re-center
-        std::cout << "Switched to Windowed (800x600)." << std::endl;
+        // Switch to Windowed Mode
+        SDL_SetWindowFullscreen(mainWindow, 0);
+        SDL_SetWindowSize(mainWindow, WINDOW_WIDTH, WINDOW_HEIGHT); // Use constants
+        SDL_SetWindowPosition(mainWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
     } else {
-        // Switch to Fullscreen Desktop Mode (Uses current desktop resolution)
-        // This is generally preferred over setting a fixed resolution like 1920x1080
+        // Switch to Fullscreen Desktop Mode
         SDL_SetWindowFullscreen(mainWindow, SDL_WINDOW_FULLSCREEN_DESKTOP);
-        std::cout << "Switched to Fullscreen." << std::endl;
-        // If you specifically want 1920x1080 fullscreen regardless of desktop:
-        // SDL_SetWindowSize(mainWindow, 1920, 1080);
-        // SDL_SetWindowFullscreen(mainWindow, SDL_WINDOW_FULLSCREEN);
     }
-    // Note: SDL should generate a WINDOWEVENT_RESIZED which MenuScene handles to recalculate layout
+    // Let SceneManager handle layout recalculation via WINDOWEVENT_RESIZED
 }
-// --- END ADDED ---
+
+// --- Main Function ---
 
 int main(int argc, char* argv[]) {
-    // Setup console
-    if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole()) {
-        freopen("CONOUT$", "w", stdout);
-        freopen("CONOUT$", "w", stderr);
-        freopen("CONIN$", "r", stdin);
-    }
-    std::cout << "Console attached successfully!" << std::endl;
-    
-    // Initialize SDL
-    if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
+
+
+    setupConsole();
+
+    // --- SDL Initialization ---
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) < 0) { // Initialize necessary subsystems
         std::cerr << "SDL could not initialize! SDL Error: " << SDL_GetError() << std::endl;
         return -1;
     }
-    
-    // Initialize SDL_ttf
-    if (TTF_Init() == -1) {
-        std::cerr << "SDL_ttf could not initialize! SDL_ttf Error: " << TTF_GetError() << std::endl;
+
+    if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) { // Initialize SDL_image for PNG loading
+        std::cerr << "SDL_image could not initialize! IMG_Error: " << IMG_GetError() << std::endl;
+        SDL_Quit();
         return -1;
     }
 
-     // Initialize SDL_mixer
-    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
-        std::cerr << "SDL_mixer could not initialize! SDL_mixer Error: " << Mix_GetError() << std::endl;
-        // Handle error
-    } else {
-        std::cout << "SDL_mixer initialized successfully!" << std::endl;
-        // <<< ADD THIS LINE: Allocate more channels (e.g., 16) >>>
-        int allocatedChannels = Mix_AllocateChannels(16);
-        std::cout << "Allocated " << allocatedChannels << " mixer channels." << std::endl;
-    }
-    
-    // Create window and renderer directly
-    SDL_Window* window = SDL_CreateWindow(
-        WINDOW_TITLE, 
-        WINDOW_POS_X, 
-        WINDOW_POS_Y, 
-        WINDOW_WIDTH, 
-        WINDOW_HEIGHT, 
-        WINDOW_FULLSCREEN
-    );
-    // --- ADDED: Assign window to global pointer ---
-    mainWindow = window;
-    // --- END ADDED ---
-    
-    if (!window) {
-        std::cerr << "Failed to create window: " << SDL_GetError() << std::endl;
+    if (TTF_Init() == -1) { // Initialize SDL_ttf
+        std::cerr << "SDL_ttf could not initialize! TTF_Error: " << TTF_GetError() << std::endl;
+        IMG_Quit();
+        SDL_Quit();
         return -1;
     }
-    
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) { // Initialize SDL_mixer
+        std::cerr << "SDL_mixer could not initialize! SDL_mixer Error: " << Mix_GetError() << std::endl;
+    } else {
+        int allocatedChannels = Mix_AllocateChannels(16); // Allocate mixer channels
+  
+    }
+
+    // --- Window & Renderer ---
+    Uint32 windowFlags = SDL_WINDOW_SHOWN | (WINDOW_FULLSCREEN ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+    mainWindow = SDL_CreateWindow(
+        WINDOW_TITLE,
+        WINDOW_POS_X,
+        WINDOW_POS_Y,
+        WINDOW_WIDTH,
+        WINDOW_HEIGHT,
+        windowFlags
+    );
+
+    if (!mainWindow) {
+        std::cerr << "Failed to create window: " << SDL_GetError() << std::endl;
+        Mix_CloseAudio(); TTF_Quit(); IMG_Quit(); SDL_Quit();
+        return -1;
+    }
+
+    SDL_Renderer* renderer = SDL_CreateRenderer(mainWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!renderer) {
         std::cerr << "Failed to create renderer: " << SDL_GetError() << std::endl;
-        SDL_DestroyWindow(window);
+        SDL_DestroyWindow(mainWindow);
+        Mix_CloseAudio(); TTF_Quit(); IMG_Quit(); SDL_Quit();
         return -1;
     }
-    
-    // Set the global renderer in Game class
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND); // Enable alpha blending
+
+    // Set the global renderer for the Game class
     Game::renderer = renderer;
-    
-    // Create scene manager
+
+    // --- Scene Manager Setup ---
     SceneManager sceneManager;
-    
-    // Add scenes
     sceneManager.addScene(SceneType::Menu, std::make_unique<MenuScene>());
     sceneManager.addScene(SceneType::Game, std::make_unique<GameScene>());
-    
-    // Start with the menu scene
-    sceneManager.switchToScene(SceneType::Menu);
-    
-    // Game loop variables
+    sceneManager.switchToScene(SceneType::Menu); // Start with the menu
+
+    // --- Game Loop ---
     const int frameDelay = 1000 / FPS;
     Uint32 frameStart;
     int frameTime;
-    bool running = true;
+    bool gameIsRunning = true; // Local loop control
     SDL_Event event;
-    
-    // Main game loop
 
-while (running) {
-    frameStart = SDL_GetTicks();
-    
-    // Handle events
-    while (SDL_PollEvent(&event)) {
-        if (event.type == SDL_QUIT) {
-            running = false;
+    while (gameIsRunning) {
+        frameStart = SDL_GetTicks();
+
+        // --- Event Handling ---
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
+                gameIsRunning = false;
+            }
+
+            // Handle global fullscreen toggle first
+            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_F11) {
+                toggleFullscreen();
+            }
+
+            // Pass event to the Game instance (for components that read it directly)
+            if(Game::instance) { // Null check for safety
+                Game::event = event;
+            }
+
+            // Pass event to the current scene
+            sceneManager.handleEvents(event);
         }
-        
-         if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_F11) {
-            toggleFullscreen();
-            // Skip processing this event further by scenes if desired, though unlikely to conflict
-            // continue; // Optional: skip SceneManager::handleEvents for this specific event
+
+        // --- Update ---
+        sceneManager.update();
+
+        // --- Render ---
+        sceneManager.render(); // Scene manager handles clearing and presenting
+
+        // --- Frame Rate Cap ---
+        frameTime = SDL_GetTicks() - frameStart;
+        if (frameDelay > frameTime) {
+            SDL_Delay(frameDelay - frameTime);
         }
-
-        if(Game::instance) { // Check if Game::instance is valid before assigning
-            Game::event = event;
-         }
-        // Process events in the scene manager
-        sceneManager.handleEvents(event);
     }
-    
-    // Update and render through the scene manager
-    sceneManager.update();
-    sceneManager.render();
-    
-    // Cap the frame rate
-    frameTime = SDL_GetTicks() - frameStart;
-    if (frameDelay > frameTime) {
-        SDL_Delay(frameDelay - frameTime);
+
+    // --- Cleanup ---
+    std::cout << "Cleaning up application resources..." << std::endl;
+
+    sceneManager.clean(); // Clean up scenes first
+
+    // Clean up SDL subsystems and renderer/window
+    if(Game::renderer) { // Use Game::renderer as it holds the pointer
+       SDL_DestroyRenderer(Game::renderer);
+       Game::renderer = nullptr;
     }
-}
+    if(mainWindow) {
+       SDL_DestroyWindow(mainWindow);
+       mainWindow = nullptr;
+    }
 
-// Clean up resources in the correct order
-std::cout << "Cleaning up all resources..." << std::endl;
+    Mix_CloseAudio();
+    Mix_Quit();
+    TTF_Quit();
+    IMG_Quit();
+    SDL_Quit();
 
-// First clean up scenes which might still reference the renderer
-sceneManager.clean();
-
-// Clean up the shared renderer and window last
-Mix_CloseAudio(); // Close audio before destroying the renderer
-SDL_DestroyRenderer(renderer);
-SDL_DestroyWindow(window);
-Game::renderer = nullptr;
-Mix_Quit();
-TTF_Quit();
-SDL_Quit();
-
-return 0;
+    std::cout << "Application exited cleanly." << std::endl;
+    return 0;
 }

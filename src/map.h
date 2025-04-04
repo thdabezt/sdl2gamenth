@@ -1,9 +1,8 @@
-// Modify src/map.h
-
 #pragma once
+
 #include <string>
-#include <vector>      // Include vector header
-#include "Vector2D.h"   // Include Vector2D header
+#include <vector> 
+#include "Vector2D.h" 
 #include "ECS/ECS.h"
 
 class Map {

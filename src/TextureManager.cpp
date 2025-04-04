@@ -1,39 +1,44 @@
+// --- Includes ---
 #include "TextureManager.h"
 #include <SDL_image.h>
-#include <iostream> // Include for std::cerr
-#include <SDL.h>    // Include for SDL_GetError()
+#include <iostream> // For std::cerr
+#include <SDL.h>    // For SDL_GetError()
+
+// --- Function Definitions ---
 
 SDL_Texture* TextureManager::LoadTexture(const char* fileName) {
     SDL_Surface *tmpSurface = IMG_Load(fileName);
-    // <<< ADD ERROR CHECKING FOR IMG_Load >>>
+    // Error check for surface loading
     if (!tmpSurface) {
         std::cerr << "Error: Failed to load image '" << fileName << "'. IMG_Error: " << IMG_GetError() << std::endl;
-        return nullptr; // Return null if loading failed
+        return nullptr;
     }
 
     SDL_Texture *tex = SDL_CreateTextureFromSurface(Game::renderer, tmpSurface);
     SDL_FreeSurface(tmpSurface); // Free surface regardless of texture creation success
 
-    // <<< ADD ERROR CHECKING FOR SDL_CreateTextureFromSurface >>>
+    // Error check for texture creation
     if (!tex) {
         std::cerr << "Error: Failed to create texture from surface for '" << fileName << "'. SDL_Error: " << SDL_GetError() << std::endl;
-        return nullptr; // Return null if texture creation failed
+        return nullptr;
     }
 
-    // Optional: Log success
-    // std::cout << "Successfully loaded texture: " << fileName << std::endl;
     return tex;
 }
 
-void TextureManager::Draw(SDL_Texture *tex, SDL_Rect src, SDL_Rect dest, double angle, SDL_RendererFlip flip) { // Added angle parameter
-    if (!Game::renderer || !tex) return;
-    // Pass the angle to SDL_RenderCopyEx
+// Draw function with rotation angle
+void TextureManager::Draw(SDL_Texture *tex, SDL_Rect src, SDL_Rect dest, double angle, SDL_RendererFlip flip) {
+    if (!Game::renderer || !tex) {
+        return;
+    }
     SDL_RenderCopyEx(Game::renderer, tex, &src, &dest, angle, NULL, flip);
 }
 
-
+// Draw function without rotation (calls Ex with 0 angle)
 void TextureManager::Draw(SDL_Texture *tex, SDL_Rect src, SDL_Rect dest, SDL_RendererFlip flip) {
-    if (!Game::renderer || !tex) return;
-    // Call SDL_RenderCopyEx with NULL (or 0.0) for the angle when no rotation is needed
+    if (!Game::renderer || !tex) {
+        return;
+    }
+    // Use SDL_RenderCopyEx with 0.0 angle for consistency, or SDL_RenderCopy if performance is critical
     SDL_RenderCopyEx(Game::renderer, tex, &src, &dest, 0.0, NULL, flip);
 }

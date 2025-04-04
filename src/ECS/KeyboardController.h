@@ -1,99 +1,99 @@
 #pragma once
-#include "../game.h"
-#include "ECS.h"
-#include "Components.h"
-#include "../Scene/SceneManager.h" // Included for scene switching
-#include "../constants.h"
-#include <iostream> // For error logging
 
+// --- Includes ---
+#include "../game.h"          // Provides Game::event access
+#include "ECS.h"            // Provides Component base class, Entity
+#include "Components.h"     // Provides TransformComponent, SpriteComponent definitions
+#include "../constants.h"     // Provides playerSpeed
+#include <iostream>          // For std::cerr error logging
+#include <SDL_scancode.h>    // For SDL_SCANCODE_* definitions
+#include <SDL_keyboard.h>    // For SDL_GetKeyboardState
+#include "../Scene/SceneManager.h" // Must Include
+
+// --- Class Definition ---
+
+// Handles player input for movement and updates animations accordingly.
 class KeyboardController : public Component {
 private:
-    bool initialized = false; // <<< ADD Initialization Flag
+    // --- Private Members ---
+    TransformComponent* transform = nullptr; // Pointer to entity's transform
+    SpriteComponent* sprite = nullptr;       // Pointer to entity's sprite
+
+    // Enum to track horizontal facing direction for sprite flipping
+    enum Direction { LEFT, RIGHT };
+    Direction lastDirection = RIGHT; // Default facing direction
+
+    bool initialized = false;          // Initialization flag
+
+    // --- Private Methods ---
+    // Updates the sprite's animation and flip based on movement state.
+    void updateAnimation(bool isMoving) {
+        if (!sprite) return; // Need sprite component to update animation
+
+        // Flip sprite based on the last horizontal movement direction
+        sprite->spriteFlip = (lastDirection == LEFT) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+        // Play "Walk" or "Idle" animation
+        sprite->Play(isMoving ? "Walk" : "Idle");
+    }
 
 public:
-    TransformComponent* transform = nullptr; // Initialize to nullptr
-    SpriteComponent* sprite = nullptr;       // Initialize to nullptr
+    // --- Constructor ---
+    KeyboardController() = default; // Use default constructor
 
-    // Track last direction
-    enum Direction { LEFT, RIGHT };
-    Direction lastDirection = RIGHT;
+    // --- Public Methods ---
 
+    // Component Lifecycle Overrides
     void init() override {
         initialized = false; // Reset flag
         if (!entity) {
-             std::cerr << "Error in KeyboardController::init: Entity is null!" << std::endl;
-             return;
+            std::cerr << "Error in KeyboardController::init: Entity is null!" << std::endl;
+            return;
         }
         if (!entity->hasComponent<TransformComponent>()) {
             std::cerr << "Error in KeyboardController::init: Entity missing TransformComponent!" << std::endl;
             return;
         }
         if (!entity->hasComponent<SpriteComponent>()) {
-             std::cerr << "Error in KeyboardController::init: Entity missing SpriteComponent!" << std::endl;
-             return;
+            std::cerr << "Error in KeyboardController::init: Entity missing SpriteComponent!" << std::endl;
+            return;
         }
 
         transform = &entity->getComponent<TransformComponent>();
         sprite = &entity->getComponent<SpriteComponent>();
 
-        if (!transform) {
-            std::cerr << "Error in KeyboardController::init: Failed to get TransformComponent pointer!" << std::endl;
-            return; // Fail init if transform is missing
-        }
-        if (!sprite) {
-             std::cerr << "Error in KeyboardController::init: Failed to get SpriteComponent pointer!" << std::endl;
-             return; // Fail init if sprite is missing
-        }
-        initialized = true; // <<< SET Flag on success
+        // Double-check pointers after assignment
+        if (!transform) { std::cerr << "Error: Failed to get TransformComponent pointer in KeyboardController.\n"; return; }
+        if (!sprite) { std::cerr << "Error: Failed to get SpriteComponent pointer in KeyboardController.\n"; return; }
+
+        initialized = true;
     }
 
     void update() override {
-        if (!initialized) return; // <<< CHECK Flag
-        // Keep internal checks as fallback safety
-        if (!transform || !sprite) return;
+        if (!initialized || !transform) return; // Check initialization and required transform
 
-        Vector2D prevVelocity = transform->velocity; // Now safer
-
-        handleKeyEvents(); // Handles non-movement keys
-
+        // --- Movement Input Handling ---
         const Uint8* keystate = SDL_GetKeyboardState(NULL);
-        transform->velocity.x = 0;
-        transform->velocity.y = 0;
+        Vector2D desiredVelocity; // Store intended movement direction
 
-        if (keystate[SDL_SCANCODE_W]) transform->velocity.y = -1;
-        if (keystate[SDL_SCANCODE_A]) { transform->velocity.x = -1; lastDirection = LEFT; }
-        if (keystate[SDL_SCANCODE_D]) { transform->velocity.x = 1; lastDirection = RIGHT; }
-        if (keystate[SDL_SCANCODE_S]) transform->velocity.y = 1;
+        // Read WASD keys
+        if (keystate[SDL_SCANCODE_W]) desiredVelocity.y = -1;
+        if (keystate[SDL_SCANCODE_S]) desiredVelocity.y = 1;
+        if (keystate[SDL_SCANCODE_A]) { desiredVelocity.x = -1; lastDirection = LEFT; }
+        if (keystate[SDL_SCANCODE_D]) { desiredVelocity.x = 1; lastDirection = RIGHT; }
 
-        if (transform->velocity.x != 0 || transform->velocity.y != 0) {
-            if (transform->velocity.x != 0 && transform->velocity.y != 0) {
-                transform->velocity = transform->velocity.Normalize();
-            }
-            transform->velocity = transform->velocity * playerSpeed;
+        // Apply velocity if movement keys are pressed
+        if (desiredVelocity.x != 0.0f || desiredVelocity.y != 0.0f) {
+            // Normalize to prevent faster diagonal movement and apply speed
+            transform->velocity = desiredVelocity.Normalize() * playerSpeed;
+        } else {
+            transform->velocity.Zero(); // Stop movement if no keys are pressed
         }
-        updateAnimation(transform->velocity.x != 0 || transform->velocity.y != 0);
+
+        // --- Animation Update ---
+        // Update animation based on whether the entity has non-zero velocity
+        updateAnimation(transform->velocity.x != 0.0f || transform->velocity.y != 0.0f);
     }
 
-private:
-    void handleKeyEvents() {
-        // Check only required if init didn't succeed, but redundant if update checks initialized flag
-        // if (!initialized) return;
-        if (Game::event.type == SDL_KEYDOWN) {
-            switch (Game::event.key.keysym.sym) {
-            // case SDLK_ESCAPE:
-            //      if (Game::instance && SceneManager::instance) {
-            //          SceneManager::instance->switchToScene(SceneType::Menu);
-            //      }
-            //     break;
-            default: break;
-            }
-        }
-    }
+    // void draw() override; // No drawing logic needed for this component
 
-    void updateAnimation(bool isMoving) {
-         if (!initialized || !sprite) return; // Check flag and sprite pointer
-
-        sprite->spriteFlip = (lastDirection == LEFT) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
-        sprite->Play(isMoving ? "Walk" : "Idle");
-    }
-};
+}; // End KeyboardController class

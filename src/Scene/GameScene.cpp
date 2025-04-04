@@ -1,72 +1,83 @@
+// --- Includes ---
 #include "GameScene.h"
-#include "SceneManager.h"
-#include <iostream>
-#include "../constants.h"
+#include "../constants.h" // Provides window settings if used in init
+#include <iostream>  
+
+// --- Constructor & Destructor ---
 
 GameScene::GameScene() : game(nullptr) {
+    // Constructor initializes game pointer to null
 }
 
 GameScene::~GameScene() {
+    // Destructor ensures cleanup is called when the scene is destroyed
     clean();
 }
 
-void GameScene::resetGame() {
-    // std::cout << "Resetting game state for new game" << std::endl;
-
-    // Clean up existing game if it exists by deleting it.
-    // The Game destructor (~Game) will now call the modified Game::clean().
-    if (game) {
-        // game->cleanExceptRenderer(); // REMOVED - Let destructor handle cleanup
-        delete game; // This will trigger ~Game() which calls clean()
-        game = nullptr;
-    }
-    // New game will be created in init()
-}
+// --- Public Methods (Scene Overrides) ---
 
 void GameScene::init() {
-    // std::cout << "Initializing Game Scene" << std::endl;
-    
-    // Check if game already exists (returning from Win/Lose scene)
+    // If a game instance already exists (e.g., returning from another scene without quitting),
+    // just ensure its running state is true.
     if (game) {
-        // std::cout << "Game already exists - just resetting state" << std::endl;
-        // Just reset the game state without destroying everything
-        Game::isRunning = true;
+        // If game state needs reset beyond just isRunning, do it here.
+        Game::isRunning = true; // Use static member
         return;
     }
-    
-    // Create a new game only if coming from menu
+
+    // Create and initialize a new Game instance if one doesn't exist.
     game = new Game();
-    game->init(WINDOW_TITLE, WINDOW_POS_X, WINDOW_POS_Y, WINDOW_WIDTH, WINDOW_HEIGHT, false);
+    if (game) {
+        // Initialize the game using constants
+        game->init(WINDOW_TITLE, WINDOW_POS_X, WINDOW_POS_Y, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_FULLSCREEN);
+    } else {
+        std::cerr << "Error: Failed to allocate memory for Game instance in GameScene::init!" << std::endl;
+        // Handle allocation failure, perhaps by setting an error state or exiting
+    }
 }
 
-
 void GameScene::handleEvents(SDL_Event& event) {
-
+    // Pass the event down to the Game instance's handlers
     if (game) {
-        game->handleEvents(); // Original call - let's analyze the if/else below first
+        game->handleEvents();
     }
-
 }
 
 void GameScene::update() {
-    if (game && Game::isRunning) {
+    // Update the Game instance if it exists and is running
+    if (game && Game::isRunning) { // Use static member
         game->update();
     }
 }
 
 void GameScene::render() {
-    if (game && Game::isRunning) {
+    // Render the Game instance if it exists and is running
+    if (game && Game::isRunning) { // Use static member
         game->render();
     }
 }
 
 void GameScene::clean() {
-    // std::cout << "Cleaning Game Scene" << std::endl;
-    
-    // Don't destroy the game object - just set isRunning to false
+    // This function is called when switching away from this scene
+    // or when the SceneManager cleans up.
+    // Deleting the game instance here handles resetting the game state
+    // when coming back from the menu or properly cleaning up on exit.
     if (game) {
-        Game::isRunning = false;
-        // DON'T delete the game or call cleanExceptRenderer
+        delete game; // Calls Game::~Game(), which calls Game::clean()
+        game = nullptr;
+        Game::isRunning = false; 
     }
-    // The game object will be properly cleaned up only when the application exits
+}
+
+// --- Helper Methods ---
+
+void GameScene::resetGame() {
+    // Explicitly called, usually before init when starting a fresh game session.
+    // This ensures any existing game instance is fully cleaned up.
+    if (game) {
+        delete game; // Calls Game::~Game(), triggering full cleanup
+        game = nullptr;
+        Game::isRunning = false;
+    }
+    // A new game instance will be created in the subsequent call to init().
 }

@@ -1,43 +1,68 @@
 #pragma once
+
+// --- Includes ---
 #include <string>
 #include <SDL.h>
-#include "Components.h"
-#include "../game.h"
-#include "../TextureManager.h"
-#include "../Vector2D.h"
-#include <iostream> // For error logging
+#include <iostream>     // For std::cerr
+#include "Components.h" // Includes ECS.h, TransformComponent.h indirectly
+#include "../game.h"    // For Game::camera, Game::renderer, Game::instance->assets
+#include "../TextureManager.h" // For TextureManager::Draw (in debug draw)
+#include "../Vector2D.h" // For position member
 
+// --- Forward Declarations ---
+
+
+// --- Class Definition ---
+
+// Represents an axis-aligned bounding box (AABB) collider for collision detection.
 class ColliderComponent : public Component {
 private:
-    bool initialized = false; // <<< ADD Initialization Flag
+    // --- Private Members ---
+    bool initialized = false; // Initialization flag
 
 public:
-    SDL_Rect collider;
-    std::string tag;
+    // --- Public Members ---
+    SDL_Rect collider;        // The SDL rectangle representing the collision area
+    std::string tag;          // Tag for identifying collider type (e.g., "player", "terrain", "enemy")
 
-    SDL_Texture* tex = nullptr; // Initialize
-    SDL_Rect srcR, destR;
+    // For Debug Drawing (Optional)
+    SDL_Texture* tex = nullptr; // Debug texture
+    SDL_Rect srcR = {0, 0, 0, 0}; // Source rect for debug texture
+    SDL_Rect destR = {0, 0, 0, 0}; // Destination rect for debug drawing
 
-    TransformComponent* transform = nullptr; // Initialize to nullptr
-    Vector2D position; // Stores collider's top-left corner
+    // State & Pointers
+    TransformComponent* transform = nullptr; // Pointer to entity's transform (if applicable)
+    Vector2D position;                       // Stores the collider's top-left corner (world coordinates)
+    int colliderWidth = 0;                   // Explicit width, overrides transform if set
+    int colliderHeight = 0;                  // Explicit height, overrides transform if set
 
-    int colliderWidth = 0;
-    int colliderHeight = 0;
+    // --- Constructors ---
 
-    ColliderComponent(std::string t) : tag(std::move(t)) { }
+    // Basic constructor with tag only (size determined by transform in init).
+    ColliderComponent(std::string t) : tag(std::move(t)) {}
 
+    // Constructor with tag and explicit dimensions (overrides transform size).
     ColliderComponent(std::string t, int cWidth, int cHeight)
-     : tag(std::move(t)), colliderWidth(cWidth), colliderHeight(cHeight) { }
+     : tag(std::move(t)), colliderWidth(cWidth), colliderHeight(cHeight) {}
 
+    // Constructor for static colliders (like terrain) with explicit position and size.
+    // Sets position directly and doesn't rely on a TransformComponent.
     ColliderComponent(std::string t, int xpos, int ypos, int size)
-        : tag(std::move(t)), position(static_cast<float>(xpos), static_cast<float>(ypos)), colliderWidth(size), colliderHeight(size) {
+        : tag(std::move(t)),
+          position(static_cast<float>(xpos), static_cast<float>(ypos)),
+          colliderWidth(size),
+          colliderHeight(size)
+    {
         collider.x = xpos;
         collider.y = ypos;
         collider.w = size;
         collider.h = size;
+        // transform will remain nullptr for this constructor type
     }
 
+    // --- Public Methods ---
 
+    // Component Lifecycle Overrides
     void init() override {
         initialized = false; // Reset flag
         if (!entity) {
@@ -45,69 +70,75 @@ public:
             return;
         }
 
-        // Dynamic colliders need TransformComponent
+        // Dynamic colliders (non-terrain) require a TransformComponent
         if (tag != "terrain") {
             if (!entity->hasComponent<TransformComponent>()) {
                  std::cerr << "Error in ColliderComponent::init: Entity with tag '" << tag << "' missing TransformComponent!" << std::endl;
-                 // Don't add default here, let init fail if transform required
-                 return; // Fail init
+                 return; // Cannot initialize without transform
             }
-             transform = &entity->getComponent<TransformComponent>();
-
-             if (!transform) {
+            transform = &entity->getComponent<TransformComponent>();
+            if (!transform) {
                   std::cerr << "Error in ColliderComponent::init: Failed to get TransformComponent for tag '" << tag << "'!" << std::endl;
-                  return; // Fail init
-             }
-
-            if (colliderWidth == 0 || colliderHeight == 0) {
-                colliderWidth = transform->width * transform->scale;
-                colliderHeight = transform->height * transform->scale;
+                  return;
             }
+
+            // Use explicit width/height if provided, otherwise use transform's size
+            if (colliderWidth == 0) { colliderWidth = static_cast<int>(transform->width * transform->scale); }
+            if (colliderHeight == 0) { colliderHeight = static_cast<int>(transform->height * transform->scale); }
+
         } else {
-             // Static terrain collider, doesn't need transform for basic position
-             transform = nullptr; // Ensure transform is null for terrain
-              if (Game::instance && Game::instance->assets) {
-                  tex = Game::instance->assets->GetTexture("border"); // Example texture
-              } else {
-                  std::cerr << "Warning in ColliderComponent::init (terrain): Game instance or assets missing!" << std::endl;
-              }
-              srcR = {0, 0, 32, 32};
+             // Static terrain collider setup
+             transform = nullptr; // Ensure transform is null
+             // Load debug texture (optional)
+             if (Game::instance && Game::instance->assets) {
+                // tex = Game::instance->assets->GetTexture("border"); // Example debug texture
+             }
+             srcR = {0, 0, 32, 32}; // Example source rect for debug texture
         }
 
+        // Set final collider dimensions
         collider.w = colliderWidth;
         collider.h = colliderHeight;
 
-        initialized = true; // <<< SET Flag on success
+        initialized = true; // Set flag on successful initialization
     }
 
     void update() override {
-        if (!initialized) return; // <<< CHECK Flag
+        if (!initialized) return; // Check initialization status
 
-        if (transform) { // If it's a dynamic collider (has transform)
-             // Calculate position based on transform
+        // Update collider position based on transform or stored position
+        if (transform) {
+             // Dynamic collider: Position based on TransformComponent, with potential offsets by tag
+             float basePosX = transform->position.x;
+             float basePosY = transform->position.y;
+
+             // Apply specific offsets based on tag - consider a data-driven approach or separate components later
              if (tag == "player") {
-                 collider.x = static_cast<int>(transform->position.x) + 50;
-                 collider.y = static_cast<int>(transform->position.y) + 70;
+                 collider.x = static_cast<int>(basePosX + 50); // Example offset
+                 collider.y = static_cast<int>(basePosY + 70); // Example offset
              }
-             else if (tag == "zombie" || tag == "aligator1" || tag == "aligator2" || 
-                tag == "bear1" || tag == "bear2" || tag == "eliteskeleton_shield" || 
-                tag == "enemy1" || tag == "ina1" || tag == "ina2" || tag == "ina3" || 
-                tag == "kfc1" || tag == "kfc2" || 
-                tag == "skeleton1" || tag == "skeleton2" || tag == "skeleton3" || 
-                tag == "skeleton4" || tag == "skeleton5" || tag == "skeleton_shield") {
-                 collider.x = static_cast<int>(transform->position.x) + 32;
-                 collider.y = static_cast<int>(transform->position.y) + 60;
+             // Grouping similar enemy types for offset application
+             else if (tag == "zombie" || tag == "aligator1" || tag == "aligator2" ||
+                      tag == "bear1" || tag == "bear2" || tag == "eliteskeleton_shield" ||
+                      tag == "ina1" || tag == "ina2" || tag == "ina3" ||
+                      tag == "kfc1" || tag == "kfc2" ||
+                      tag == "skeleton1" || tag == "skeleton2" || tag == "skeleton3" ||
+                      tag == "skeleton4" || tag == "skeleton5" || tag == "skeleton_shield" ||
+                      tag == "boss") { // Added boss tag for potential offset needs
+                 collider.x = static_cast<int>(basePosX + 32); // Example enemy offset
+                 collider.y = static_cast<int>(basePosY + 60); // Example enemy offset
              }
              else if (tag == "projectile" || tag == "exp_orb") {
-                 collider.x = static_cast<int>(transform->position.x);
-                 collider.y = static_cast<int>(transform->position.y);
+                 // Projectiles/orbs usually align directly with transform
+                 collider.x = static_cast<int>(basePosX);
+                 collider.y = static_cast<int>(basePosY);
              }
-             else { // Default
-                 collider.x = static_cast<int>(transform->position.x);
-                 collider.y = static_cast<int>(transform->position.y);
+             else { // Default for unknown dynamic tags
+                 collider.x = static_cast<int>(basePosX);
+                 collider.y = static_cast<int>(basePosY);
              }
         } else if (tag == "terrain") {
-            // Use position set in constructor for static terrain
+            // Static terrain collider: Use position set in constructor
             collider.x = static_cast<int>(position.x);
             collider.y = static_cast<int>(position.y);
         } else {
@@ -115,27 +146,28 @@ public:
              return;
         }
 
-        // Update internal position vector regardless of type
+        // Update internal Vector2D position to match the final collider rect top-left
         position.x = static_cast<float>(collider.x);
         position.y = static_cast<float>(collider.y);
 
-        // Update destR for drawing (depends on camera) - maybe belongs in draw?
+        // Update destR for debug drawing (accounts for camera)
         destR.x = collider.x - Game::camera.x;
         destR.y = collider.y - Game::camera.y;
-        destR.w = collider.w;
-        destR.h = collider.h;
+        destR.w = collider.w; // Use final calculated width
+        destR.h = collider.h; // Use final calculated height
     }
 
     void draw() override {
-        // if (!initialized) return; // Optional check
+        // Optional debug drawing of the collider bounds
+        bool debug_draw = false; // Set to true to enable debug drawing
+        if (!debug_draw || !initialized || !Game::renderer) return;
 
-        bool debug = false ;
-        if(!debug) return;
-        if (!Game::renderer) return;
-
-        SDL_SetRenderDrawColor(Game::renderer, 255, 0, 0, 255);
-        SDL_Rect debugRect = { destR.x, destR.y, collider.w, collider.h }; // Use destR for camera offset
-        SDL_RenderDrawRect(Game::renderer, &debugRect);
-        SDL_SetRenderDrawColor(Game::renderer, 255, 255, 255, 255);
+        // Set color (e.g., red for debug)
+        SDL_SetRenderDrawColor(Game::renderer, 255, 0, 0, 150); // Semi-transparent red
+        // Use destR which already has camera offset applied
+        SDL_RenderDrawRect(Game::renderer, &destR);
+        // Reset draw color (optional, depends on subsequent drawing calls)
+        // SDL_SetRenderDrawColor(Game::renderer, 255, 255, 255, 255);
     }
-};
+
+}; // End ColliderComponent class

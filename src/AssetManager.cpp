@@ -18,9 +18,7 @@ void AssetManager::CreateProjectile(Vector2D pos, Vector2D vel, int damage, int 
      if (id == "boss_projectile") { // Check the asset ID
          if (projectile.hasComponent<ProjectileComponent>()) {
              projectile.getComponent<ProjectileComponent>().isSpinning = true; // Sets flag on the FIRST component
-             // --- DEBUG LOG ---
-             // std::cout << "[DEBUG] AssetManager: Set isSpinning=true for projectile with ID: " << id << std::endl;
-             // --- END DEBUG LOG ---
+
          }
      }
      // --- END ---
@@ -29,12 +27,12 @@ void AssetManager::CreateProjectile(Vector2D pos, Vector2D vel, int damage, int 
 }
 
 void AssetManager::AddTexture(std::string id, const char* path){
-    // std::cout << "DEBUG: AssetManager attempting to load Texture. ID: '" << id << "', Path: '" << path << "'" << std::endl; // Log attempt
+
     SDL_Texture* loadedTexture = TextureManager::LoadTexture(path);
     if (loadedTexture == nullptr) {
         std::cerr << "ERROR: AssetManager failed to load texture for ID: '" << id << "'" << std::endl; // Log failure
     } else {
-        // std::cout << "DEBUG: AssetManager successfully loaded texture for ID: '" << id << "'" << std::endl; // Log success
+
         textures.emplace(id, loadedTexture);
     }
 }
@@ -62,7 +60,7 @@ Mix_Chunk* AssetManager::GetSoundEffect(std::string id) {
 void AssetManager::AddMusic(std::string id, const char* path) {
     Mix_Music* music = Mix_LoadMUS(path);
     if (music == nullptr) {
-        // std::cerr << "Failed to load music: " << path << "! SDL_mixer Error: " << Mix_GetError() << std::endl;
+
     } else {
         musicTracks.emplace(id, music);
     }
@@ -72,6 +70,6 @@ Mix_Music* AssetManager::GetMusic(std::string id) {
     if (musicTracks.count(id)) {
         return musicTracks[id];
     }
-    // std::cerr << "Music track not found: " << id << std::endl;
+
     return nullptr;
 }

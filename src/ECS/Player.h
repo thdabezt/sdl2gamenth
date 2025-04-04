@@ -1,15 +1,24 @@
 #pragma once
+
+// --- Includes ---
 #include <string>
-#include <SDL.h>
-#include "Components.h" // Includes Entity, Vector2D etc. indirectly
-#include <stdexcept> // For runtime_error
-#include <algorithm> // For std::max
+#include <SDL_stdinc.h> // For Uint32 if needed, though not directly used here
+#include <stdexcept>    // For std::runtime_error
+#include <algorithm>    // For std::max
+#include "Components.h" // Includes Entity.h, Vector2D.h, and component headers indirectly
 
-// Forward declare Entity if Components.h doesn't guarantee it before Player use
-// class Entity;
+// --- Forward Declarations ---
+class HealthComponent;     // Needed for getter return types/checks
+class WeaponComponent;     // Needed for getter return types/checks
+class TransformComponent;  // Needed for getter return types/checks
 
+// --- Class Definition ---
+
+// Manages player-specific stats and provides convenience methods
+// to access data stored in the associated player Entity's components.
 class Player {
 private:
+    // --- Private Members ---
     Entity* playerEntity; // Pointer to the entity this manager wraps
 
     // Player stats
@@ -20,46 +29,46 @@ private:
     float lifestealPercentage = 0.0f; // Percentage (e.g., 5.0 = 5%)
 
 public:
-    // --- Constructor DECLARATION ONLY ---
-    Player(Entity* entity); // NO BODY {} here
+    // --- Constructor ---
+    // Constructor requires a valid pointer to the player's Entity.
+    Player(Entity* entity); // Definition in Player.cpp
 
-    // Level system methods
-    void addExperience(int exp);
-    void levelUp();
-    int getLevel() const { return level; }
-    int getExperience() const { return experience; }
-    int getExperienceToNextLevel() const { return experienceToNextLevel; }
-    float getExperiencePercentage() const { return (experienceToNextLevel > 0) ? static_cast<float>(experience) / experienceToNextLevel : 0.0f; }
+    // --- Public Methods ---
 
-    // Stat getters
-    int getEnemiesDefeated() const { return enemiesDefeated; }
-    void incrementEnemiesDefeated() { enemiesDefeated++; }
+    // Level System
+    void addExperience(int exp); // Adds experience and handles level ups. Definition in Player.cpp
+    void levelUp();              // Handles leveling up logic. Definition in Player.cpp
+    int getLevel() const;       
+    int getExperience() const;  
+    int getExperienceToNextLevel() const;
+    float getExperiencePercentage() const;
 
-    // Entity access methods
-    Entity& getEntity() { if (!playerEntity) throw std::runtime_error("Player entity is null!"); return *playerEntity; }
-    const Entity& getEntity() const { if (!playerEntity) throw std::runtime_error("Player entity is null!"); return *playerEntity; }
+    // Stats
+    int getEnemiesDefeated() const;
+    void incrementEnemiesDefeated();
+    float getLifestealPercentage() const;
+    void setLifestealPercentage(float percentage);
 
-    // Health component shortcuts
-    int getHealth() const;
-    int getMaxHealth() const;
-    void heal(int amount); // Heal method DECLARATION
+    // Entity Access
+    Entity& getEntity();      
+    const Entity& getEntity() const;
 
-    // Weapon component shortcuts
-    int getDamage() const;
-    float getFireRate() const;
+    // Component Shortcuts (Getters)
+    int getHealth() const;       
+    int getMaxHealth() const;    
+    int getDamage() const;       
+    float getFireRate() const;   
     int getProjectileCount() const;
-
-    // TransformComponent shortcuts
-    float getSpeed() const;
+    float getSpeed() const;      
     Vector2D getPosition() const;
 
-    // Setters needed for loading
-    void setLevel(int newLevel);
-    void setExperience(int newExp);
-    void setExperienceToNextLevel(int newExpToNext);
-    void setEnemiesDefeated(int count);
+    // Actions
+    void heal(int amount);
 
-    // LIFESTEAL GETTER/SETTER
-    float getLifestealPercentage() const { return lifestealPercentage; }
-    void setLifestealPercentage(float percentage) { lifestealPercentage = std::max(0.0f, percentage); }
-};
+    // Setters (Mainly for loading game state)
+    void setLevel(int newLevel);            
+    void setExperience(int newExp);         
+    void setExperienceToNextLevel(int newExpToNext);
+    void setEnemiesDefeated(int count);     
+
+}; // End Player class

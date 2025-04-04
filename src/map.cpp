@@ -11,9 +11,6 @@
 #include <vector>
 #include <string>
 
-// --- REMOVE extern spawnPoints ---
-// extern std::vector<Vector2D> spawnPoints;
-
 
 Map::Map(Manager& manager, std::string tID, int mscale, int tsize)
  : manager_ref(manager), texID(std::move(tID)), mapscale(mscale), tileSize(tsize)

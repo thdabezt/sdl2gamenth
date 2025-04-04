@@ -1,10 +1,10 @@
 PlayerName:DEBUG
-PlayerLevel:1
+PlayerLevel:99
 PlayerExperience:0
-PlayerExpToNext:10
+PlayerExpToNext:999999
 PlayerEnemiesDefeated:0
-PlayerHealth:9999
-PlayerMaxHealth:9999
+PlayerHealth:99999
+PlayerMaxHealth:99999
 PlayerPosX:400
 PlayerPosY:320
 WeaponTag:pistol

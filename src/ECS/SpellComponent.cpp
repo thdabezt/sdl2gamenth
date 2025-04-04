@@ -1,97 +1,102 @@
-#include "Components.h" // Includes SpellComponent.h
+// --- Includes ---
+#include "Components.h" // Includes SpellComponent.h indirectly
 #include "../AssetManager.h"
-#include "../game.h"
-#include <iostream>
-// #define _USE_MATH_DEFINES // Not needed if using acos
-#include <cmath>
-#include <cstdlib>
-#include <ctime>
+#include "../game.h"     // For Game::instance access
+#include <iostream>    // For std::cerr error logging
+#include <cmath>       // For std::cos, std::sin, acos, std::max
+#include <cstdlib>     // For rand(), RAND_MAX
+// #include <ctime>    // Not strictly needed if seeded globally
 
-        SpellComponent::SpellComponent(std::string spellTag, int dmg, int cool, float speed,
-            int count, int size, std::string texId, /* REMOVE int dur, */ SpellTrajectory mode,
-            float growthRate, int pierce)
-        : tag(std::move(spellTag)), damage(dmg), cooldown(cool), projectileSpeed(speed),
-        projectilesPerCast(count), projectileSize(size), projectileTexture(std::move(texId)),
-        trajectoryMode(mode), spiralGrowthRate(growthRate),
-        projectilePierce(pierce > 0 ? pierce : 1)
-        {
-              // Pointers initialized to nullptr in header
-              // State variables initialized in header
-              if (trajectoryMode == SpellTrajectory::RANDOM_DIRECTION) {
-                   // Seeding random here might cause issues if multiple spells are created quickly.
-                   // Consider seeding once globally (e.g., in Game constructor or main).
-                   // std::srand(static_cast<unsigned int>(std::time(nullptr)));
-              }
-          }
+// --- Constructor ---
+
+SpellComponent::SpellComponent(std::string spellTag, int dmg, int cool, float speed,
+                               int count, int size, std::string texId, SpellTrajectory mode,
+                               float growthRate, int pierce)
+    : tag(std::move(spellTag)), damage(dmg), cooldown(cool), projectileSpeed(speed),
+      projectilesPerCast(count), projectileSize(size), projectileTexture(std::move(texId)),
+      trajectoryMode(mode), spiralGrowthRate(growthRate),
+      projectilePierce(pierce > 0 ? pierce : 1) // Ensure pierce is at least 1
+{
+    // Pointers (transform, sound) are initialized to nullptr in the header.
+    // State variables (lastCastTime, spiralAngle, level, etc.) are initialized in the header or init().
+    // Global random seed should be handled elsewhere (e.g., Game constructor or main).
+}
+
+// --- Method Definitions ---
+
+// --- Component Lifecycle ---
 
 void SpellComponent::init() {
     initialized = false; // Reset flag
     if (!entity) { std::cerr << "Error in SpellComponent::init: Entity is null!" << std::endl; return; }
 
+    // Get required TransformComponent
     if (!entity->hasComponent<TransformComponent>()) { std::cerr << "Error in SpellComponent::init (" << tag << "): Entity missing TransformComponent!" << std::endl; return; }
     transform = &entity->getComponent<TransformComponent>();
+    if (!transform) { std::cerr << "Error in SpellComponent::init (" << tag << "): Failed to get TransformComponent pointer!" << std::endl; return; }
 
-    // Get SoundComponent (optional)
+    // Get optional SoundComponent
     if (entity->hasComponent<SoundComponent>()) { sound = &entity->getComponent<SoundComponent>(); }
     else { sound = nullptr; }
 
-    if (!transform) { std::cerr << "Error in SpellComponent::init (" << tag << "): Failed to get TransformComponent pointer!" << std::endl; return; }
-
-    lastCastTime = SDL_GetTicks();
-    initialized = true; // <<< SET Flag on success
+    lastCastTime = SDL_GetTicks(); // Initialize cooldown timer
+    initialized = true;
 }
 
 void SpellComponent::update() {
-    if (!initialized || !transform) return; // Check initialization and transform
+    if (!initialized || !transform) return; // Check initialization and required pointers
 
     Uint32 currentTime = SDL_GetTicks();
 
-    // Burst fire logic for spells that use it (e.g., modified Star)
+    // Burst fire logic (if shots remaining)
     if (burstShotsRemaining > 0) {
         if (currentTime >= nextBurstShotTime) {
             castSingleProjectile(); // Cast one projectile of the burst
             burstShotsRemaining--;
-            if (burstShotsRemaining > 0) { // Don't set timer if it was the last shot
+            if (burstShotsRemaining > 0) { // Schedule next if more remain
                nextBurstShotTime = currentTime + burstDelay;
             }
         }
     }
-    // Check main cooldown ONLY if not currently bursting
+    // Cooldown check (only if not bursting)
     else if (currentTime > lastCastTime + cooldown) {
-        
-        if (trajectoryMode == SpellTrajectory::RANDOM_DIRECTION || trajectoryMode == SpellTrajectory::SPIRAL ) { // Apply burst logic only to Star (or others if desired)
-            burstShotsRemaining = projectilesPerCast; // Start the burst sequence
-            nextBurstShotTime = currentTime; // First shot immediately
-            lastCastTime = currentTime;      // Reset main cooldown timer
+        // Determine if this spell uses burst logic
+        bool useBurst = (trajectoryMode == SpellTrajectory::RANDOM_DIRECTION || trajectoryMode == SpellTrajectory::SPIRAL); // Example condition
 
+        if (useBurst) {
+            burstShotsRemaining = projectilesPerCast; // Start the burst sequence
+            nextBurstShotTime = currentTime;          // First shot is immediate in the sequence
+            lastCastTime = currentTime;               // Reset main cooldown timer
+
+            // Play sound once at the start of the burst
             if (sound && projectilesPerCast > 0) {
-                // --- ADD DEBUG LOGGING ---
-                // std::cout << "DEBUG: Spell '" << tag << "' attempting to play sound." << std::endl;
-                // --- END DEBUG LOGGING ---
                 if (trajectoryMode == SpellTrajectory::RANDOM_DIRECTION) {
                      sound->playSoundEffect("star_cast");
                  } else if (trajectoryMode == SpellTrajectory::SPIRAL) {
                      sound->playSoundEffect("fire_cast");
                  }
+                 // Add other sounds for different spell tags if needed
             }
-            
-            // Cast the first shot of the burst immediately
+
+            // Cast the very first shot of the burst now
             if (burstShotsRemaining > 0) {
                castSingleProjectile();
                burstShotsRemaining--;
-                if (burstShotsRemaining > 0) { // Set timer only if more shots remain
+                if (burstShotsRemaining > 0) { // Set timer only if more shots remain after the first
                    nextBurstShotTime = currentTime + burstDelay;
                }
             }
-        } else { // Handle non-burst spells (like the Fire spiral)
-             castSpell(); // Use the original cast logic
+        } else {
+             // Handle non-burst spells (if any) - Currently, both main types use burst
+             // castSpellFull(); // Call the full cast logic for non-burst
              lastCastTime = currentTime;
+             // Play sound for non-burst spells if needed
         }
     }
 
-    // Existing spiral angle update (only relevant if trajectoryMode is SPIRAL)
+    // Update spiral angle regardless of cooldown (for visual effect or next cast)
     if (trajectoryMode == SpellTrajectory::SPIRAL) {
-         spiralAngle += 0.1f;
+         spiralAngle += 0.1f; // Adjust rotation speed as needed
          const double PI = acos(-1.0);
          if (spiralAngle > 2.0 * PI) {
              spiralAngle -= 2.0 * PI;
@@ -99,154 +104,117 @@ void SpellComponent::update() {
     }
 }
 
+// --- Casting Logic ---
+
+// Public castSpell function - currently delegates based on update logic, could be simplified
 void SpellComponent::castSpell() {
-    if (!initialized) return; // <<< CHECK Flag
-    // Keep internal checks
-    if (!transform) return;
-
-    
-
-    Vector2D spawnCenter = transform->position;
-    // Center spawn relative to transform size
-    spawnCenter.x += (transform->width * transform->scale) / 2.0f;
-    spawnCenter.y += (transform->height * transform->scale) / 2.0f;
-
-    const double PI = acos(-1.0);
-
-    switch (trajectoryMode) {
-        case SpellTrajectory::RANDOM_DIRECTION:
-            for (int i = 0; i < projectilesPerCast; ++i) {
-                float randomAngle = static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (2.0 * PI)));
-                Vector2D velocity;
-                velocity.x = std::cos(randomAngle) * projectileSpeed;
-                velocity.y = std::sin(randomAngle) * projectileSpeed;
-                createProjectile(spawnCenter, velocity);
-            }
-            break;
-
-        case SpellTrajectory::SPIRAL:
-             if (projectilesPerCast > 0) {
-                  float currentRadius = spiralAngle * spiralGrowthRate;
-                  Vector2D spiralSpawnPosition;
-                  spiralSpawnPosition.x = spawnCenter.x + std::cos(spiralAngle) * currentRadius;
-                  spiralSpawnPosition.y = spawnCenter.y + std::sin(spiralAngle) * currentRadius;
-                  Vector2D velocity;
-                  velocity.x = std::cos(spiralAngle) * projectileSpeed;
-                  velocity.y = std::sin(spiralAngle) * projectileSpeed;
-                  for(int i = 0;i<projectilesPerCast;i++){
-                      createProjectile(spiralSpawnPosition, velocity);
-                      
-                  }
-             }
-            break;
+    // This function might be redundant if all casting logic is handled within update()
+    // For now, it can just call the internal helper for non-burst spells if needed.
+    if (trajectoryMode != SpellTrajectory::RANDOM_DIRECTION && trajectoryMode != SpellTrajectory::SPIRAL) {
+         // castSpellFull(); // Example for a non-burst spell
     }
+    // Burst spells are initiated and handled within update()
 }
 
-void SpellComponent::createProjectile(Vector2D position, Vector2D velocity) {
-    if (Game::instance && Game::instance->assets) {
-        Game::instance->assets->CreateProjectile(position, velocity, damage, projectileSize, projectileTexture, projectilePierce); // Remove duration argument
-    } else {
-         std::cerr << "Error in SpellComponent::createProjectile: Game instance or assets is null!" << std::endl;
-    }
-}
-
-// New method for casting one projectile (used by burst logic)
+// Casts a single projectile (used by burst logic or potentially single-shot spells)
 void SpellComponent::castSingleProjectile() {
-    if (!initialized || !transform) return; // Already checked in update()
+    if (!initialized || !transform) return; // Basic checks
 
+    // Calculate spawn center based on entity's transform
     Vector2D spawnCenter = transform->position;
     spawnCenter.x += (transform->width * transform->scale) / 2.0f;
     spawnCenter.y += (transform->height * transform->scale) / 2.0f;
+
     const double PI = acos(-1.0);
+    Vector2D velocity;
 
-    // Logic specific to the spell type
+    // Calculate velocity based on trajectory mode
     if (trajectoryMode == SpellTrajectory::RANDOM_DIRECTION) {
-        // --- Sound for Star (optional: only on first shot?) ---
-        
-
-        // --- End Sound ---
         float randomAngle = static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (2.0 * PI)));
-        Vector2D velocity;
         velocity.x = std::cos(randomAngle) * projectileSpeed;
         velocity.y = std::sin(randomAngle) * projectileSpeed;
         createProjectile(spawnCenter, velocity);
-
-    } else if (trajectoryMode == SpellTrajectory::SPIRAL) { // <<< ADDED SPIRAL LOGIC HERE
-        // --- Sound for Fire (optional: only on first shot?) ---
-         
-        // --- End Sound ---
-
-        // Calculate current spiral position and velocity for *this* shot
+    } else if (trajectoryMode == SpellTrajectory::SPIRAL) {
         float currentRadius = spiralAngle * spiralGrowthRate;
         Vector2D spiralSpawnPosition;
         spiralSpawnPosition.x = spawnCenter.x + std::cos(spiralAngle) * currentRadius;
         spiralSpawnPosition.y = spawnCenter.y + std::sin(spiralAngle) * currentRadius;
 
-        Vector2D velocity;
         velocity.x = std::cos(spiralAngle) * projectileSpeed;
         velocity.y = std::sin(spiralAngle) * projectileSpeed;
 
-        // Create just one projectile for this step in the burst
         createProjectile(spiralSpawnPosition, velocity);
 
-        // --- Increment spiralAngle AFTER casting this projectile ---
-        // This ensures the *next* projectile in the burst appears at the next spiral point.
-        // Adjust the increment amount (0.1f) as needed for visual spacing.
-        spiralAngle += 0.1f;
+        // Increment spiral angle AFTER casting for the next step in the burst/sequence
+        spiralAngle += 0.1f; // Adjust increment for visual spacing
         if (spiralAngle > 2.0 * PI) {
             spiralAngle -= 2.0 * PI;
         }
-        // --- End Increment ---
     }
-    // Add other trajectory logic here if needed for bursting other spell types
 }
-// Rename original castSpell
-void SpellComponent::castSpellFull() { // Renamed from castSpell
-    if (!initialized || !transform ) return;
 
-    
+// Casts all projectiles at once (original logic, potentially for non-burst spells)
+void SpellComponent::castSpellFull() {
+    if (!initialized || !transform ) return;
 
     Vector2D spawnCenter = transform->position;
     spawnCenter.x += (transform->width * transform->scale) / 2.0f;
     spawnCenter.y += (transform->height * transform->scale) / 2.0f;
+
     const double PI = acos(-1.0);
 
     switch (trajectoryMode) {
-        // RANDOM_DIRECTION is now handled by burst logic in update()
-        // case SpellTrajectory::RANDOM_DIRECTION:
-            // ... (Original logic removed or commented out) ...
-            // break;
+        // RANDOM_DIRECTION is handled by burst logic in update() via castSingleProjectile
+        // SPIRAL is handled by burst logic in update() via castSingleProjectile
 
-        case SpellTrajectory::SPIRAL: // Keep spiral logic for Fire spell
-             if (projectilesPerCast > 0) {
-                 float currentRadius = spiralAngle * spiralGrowthRate;
-                 Vector2D spiralSpawnPosition;
-                 spiralSpawnPosition.x = spawnCenter.x + std::cos(spiralAngle) * currentRadius;
-                 spiralSpawnPosition.y = spawnCenter.y + std::sin(spiralAngle) * currentRadius;
-
-                 // Calculate velocity ONCE for the spiral direction
-                 Vector2D baseVelocity;
-                 baseVelocity.x = std::cos(spiralAngle) * projectileSpeed;
-                 baseVelocity.y = std::sin(spiralAngle) * projectileSpeed;
-
-                 // Create all projectiles for the spiral at once
-                 for(int i = 0; i < projectilesPerCast; i++) {
-                     // Slightly offset spawn position for visual effect? Optional.
-                     // Vector2D offsetPos = spiralSpawnPosition + Vector2D(i*2, i*2); // Example offset
-                     createProjectile(spiralSpawnPosition, baseVelocity);
-                 }
+        default: // Fallback or handle other non-burst modes
+             for (int i = 0; i < projectilesPerCast; ++i) {
+                 // Example: Default random cast if mode isn't burst
+                 float randomAngle = static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (2.0 * PI)));
+                 Vector2D defaultVel;
+                 defaultVel.x = std::cos(randomAngle) * projectileSpeed;
+                 defaultVel.y = std::sin(randomAngle) * projectileSpeed;
+                 createProjectile(spawnCenter, defaultVel);
              }
             break;
-         // Default case or handle other trajectories
-         default:
-              // Fallback: Cast one projectile randomly if mode not handled
-              castSingleProjectile();
-              break;
     }
 }
+
+// Helper to create the actual projectile entity
+void SpellComponent::createProjectile(Vector2D position, Vector2D velocity) {
+    if (Game::instance && Game::instance->assets) {
+        Game::instance->assets->CreateProjectile(position, velocity, damage, projectileSize, projectileTexture, projectilePierce);
+    } else {
+         std::cerr << "Error in SpellComponent::createProjectile: Game instance or assets is null!" << std::endl;
+    }
+}
+
+// --- Property Modifiers ---
+void SpellComponent::increaseDamage(int amount) { damage = std::max(0, damage + amount); } // Prevent negative damage
+void SpellComponent::decreaseCooldown(int amount) { cooldown = std::max(50, cooldown - amount); } // Minimum cooldown 50ms
+void SpellComponent::increaseProjectileSpeed(float amount) { projectileSpeed += amount; }
+void SpellComponent::increaseProjectileCount(int amount) { projectilesPerCast = std::max(1, projectilesPerCast + amount); } // Ensure at least 1
+void SpellComponent::increaseProjectileSize(int amount) { projectileSize = std::max(1, projectileSize + amount); } // Ensure at least 1x1
+void SpellComponent::increasePierce(int amount) { projectilePierce += amount; }
+
 void SpellComponent::decreaseCooldownPercentage(float percent) {
     if (percent <= 0) return;
     float multiplier = 1.0f - (percent / 100.0f);
     cooldown = static_cast<int>(cooldown * multiplier);
     cooldown = std::max(50, cooldown); // Ensure a minimum cooldown (e.g., 50ms)
 }
+
+// --- Getters ---
+std::string SpellComponent::getTag() const { return tag; }
+int SpellComponent::getDamage() const { return damage; }
+int SpellComponent::getCooldown() const { return cooldown; }
+float SpellComponent::getProjectileSpeed() const { return projectileSpeed; }
+int SpellComponent::getProjectileSize() const { return projectileSize; }
+int SpellComponent::getPierce() const { return projectilePierce; }
+int SpellComponent::getProjectileCount() const { return projectilesPerCast; }
+int SpellComponent::getDuration() const { return duration; }
+
+// --- Level Management ---
+int SpellComponent::getLevel() const { return level; }
+void SpellComponent::setLevel(int newLevel) { level = std::max(0, newLevel); } // Ensure level >= 0
+void SpellComponent::incrementLevel() { level++; }

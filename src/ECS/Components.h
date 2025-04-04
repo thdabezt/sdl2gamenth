@@ -1,5 +1,6 @@
 #pragma once
 #include "ECS.h"
+
 #include "TransformComponent.h"
 #include "SpriteComponent.h"
 #include "KeyboardController.h"
@@ -10,7 +11,7 @@
 #include "WeaponComponent.h"
 #include "Player.h"
 #include "SpellComponent.h" 
-#include "SoundComponent.h" // Add this line
+#include "SoundComponent.h"
 #include "ExpOrbComponent.h"
-#include "BossAIComponent.h" // Add this line
+#include "BossAIComponent.h" 
 // #include "EnemyAi.h"

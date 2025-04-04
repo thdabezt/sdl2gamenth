@@ -1,4 +1,4 @@
-// Game/src/Scene/MenuScene.cpp
+// --- Includes ---
 #include "MenuScene.h"
 #include "SceneManager.h"
 #include "GameScene.h"
@@ -10,216 +10,33 @@
 #include <filesystem> // Requires C++17
 #include <fstream>
 #include <sstream>
-#include "../AssetManager.h"
 
 // Define namespace alias for easier use
 namespace fs = std::filesystem;
 
-// --- Constructor ---
+// --- Constructor & Destructor ---
+
 MenuScene::MenuScene() {}
 
-// --- Destructor ---
 MenuScene::~MenuScene() {
     clean();
 }
 
-// --- Helper: Load Texture ---
-SDL_Texture* MenuScene::loadTexture(const std::string& path) {
-     SDL_Texture* newTexture = TextureManager::LoadTexture(path.c_str());
-     if (newTexture == nullptr) {
-         std::cerr << "Failed to load texture: " << path << " SDL_Error: " << SDL_GetError() << std::endl;
-     }
-     return newTexture;
-}
-
-// --- Helper: Update Name Texture ---
-void MenuScene::updateNameTexture() {
-    if (nameTextTexture) {
-        SDL_DestroyTexture(nameTextTexture);
-        nameTextTexture = nullptr;
-    }
-    // Reset original dimensions when texture is cleared or fails
-    originalNameTextW = 0;
-    originalNameTextH = 0;
-
-    if (!inputFont) {
-         std::cerr << "Cannot update name texture: inputFont is null!" << std::endl;
-         // No need to call calculateLayout here if font failed
-         return;
-    }
-
-    std::string textToRender = playerName;
-    SDL_Color colorToUse = inputTextColor;
-
-    // Determine text and color (handle placeholder)
-    if (selectedSaveSlotIndex == 0 && !isEditingName && playerName.empty()) {
-        textToRender = "Enter Name (Optional)";
-        colorToUse = placeholderTextColor;
-    } else if (playerName.empty()) { // Applies if editing OR (not editing and not placeholder case)
-         // Don't render texture if name is truly empty
-         int w, h;
-         if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h); else { w = 800; h = 600; }
-         calculateLayout(w, h); // Recalculate layout to position cursor correctly
-         return;
-    }
-
-    // Render the text surface
-    SDL_Surface* textSurface = TTF_RenderText_Blended(inputFont, textToRender.c_str(), colorToUse);
-    if (!textSurface) {
-        std::cerr << "Unable to render name text surface! SDL_ttf Error: " << TTF_GetError() << std::endl;
-        // No need to call calculateLayout here if render failed
-        return;
-    }
-
-    // Create texture from surface
-    nameTextTexture = SDL_CreateTextureFromSurface(Game::renderer, textSurface);
-    if (!nameTextTexture) {
-        std::cerr << "Unable to create name text texture! SDL Error: " << SDL_GetError() << std::endl;
-    } else {
-        // --- Store ORIGINAL dimensions ---
-        originalNameTextW = textSurface->w; // <<< CHANGED
-        originalNameTextH = textSurface->h; // <<< CHANGED
-    }
-    SDL_FreeSurface(textSurface);
-
-    // Recalculate layout to position the potentially new text size correctly
-    int w, h;
-    if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h); else { w = 800; h = 600; }
-    calculateLayout(w,h);
-}
-
-
-// --- Helper: Parse Timestamp from Filename ---
-std::string MenuScene::parseTimestampFromFilename(const std::string& filename) {
-    size_t last_slash_idx = filename.find_last_of("\\/");
-    std::string name_only = (last_slash_idx == std::string::npos) ? filename : filename.substr(last_slash_idx + 1);
-    size_t dot_idx = name_only.rfind(".state");
-    if (dot_idx == std::string::npos) return "Unknown Date";
-    std::string timestamp_str = name_only.substr(0, dot_idx);
-    if (timestamp_str.length() == 15 && timestamp_str[8] == '-') {
-        return timestamp_str.substr(0, 2) + "/" + timestamp_str.substr(2, 2) + "/" + timestamp_str.substr(4, 4) +
-               " " + timestamp_str.substr(9, 2) + ":" + timestamp_str.substr(11, 2);
-    }
-    return timestamp_str;
-}
-
-// --- Helper: Parse Level from Save File ---
-int MenuScene::parseLevelFromSaveFile(const std::string& filepath) {
-    std::ifstream saveFile(filepath);
-    if (!saveFile.is_open()) return 0;
-    std::string line, key, value;
-    int level = 1;
-    while (std::getline(saveFile, line)) {
-        std::size_t separatorPos = line.find(':');
-        if (separatorPos == std::string::npos) continue;
-        key = line.substr(0, separatorPos);
-        value = line.substr(separatorPos + 1);
-        if (key == "PlayerLevel") {
-            try { level = std::stoi(value); break; }
-            catch (...) { level = 1; break; }
-        }
-    }
-    saveFile.close();
-    return std::max(1, level);
-}
-
-
-
-// --- Load Save Files (with filtering and explicit construction) ---
-void MenuScene::loadSaveFiles() {
-    std::cout << "Loading save files..." << std::endl;
-    saveSlots.clear();
-    // --- MODIFIED: Explicitly construct SaveSlotInfo ---
-    saveSlots.push_back(SaveSlotInfo{ "", 0, "Player", "", true }); // Add "+ New Game" option first
-
-    std::string saveDir = "saves";
-    std::vector<fs::path> stateFiles;
-
-    try {
-        // Check if the directory exists, create it if it doesn't
-        if (!fs::exists(saveDir) || !fs::is_directory(saveDir)) {
-            std::cout << "'saves' directory not found or is not a directory. Creating..." << std::endl;
-             if (!fs::create_directory(saveDir)) {
-                  std::cerr << "Failed to create 'saves' directory!" << std::endl;
-                  // Still proceed, list will just have "+ New Game"
-             }
-        }
-
-        // Iterate through the directory
-        for (const auto& entry : fs::directory_iterator(saveDir)) {
-            // --- Filter specific files ---
-            std::string filename_str = entry.path().filename().string();
-            if (filename_str == "default.state" || filename_str == "quicksave.state") {
-                std::cout << "Skipping file: " << filename_str << std::endl;
-                continue; // Skip this file
-            }
-            // --- End Filter ---
-
-            // Check if it's a regular file with the correct extension
-            if (entry.is_regular_file() && entry.path().extension() == ".state") {
-                stateFiles.push_back(entry.path());
-            }
-        }
-
-        // Sort collected files by last write time (latest first)
-        std::sort(stateFiles.begin(), stateFiles.end(), [](const fs::path& a, const fs::path& b) {
-            try {
-                // Handle potential errors if file is deleted between listing and sorting
-                 if (!fs::exists(a) || !fs::exists(b)) return false;
-                 return fs::last_write_time(a) > fs::last_write_time(b);
-            } catch (const fs::filesystem_error& e) {
-                 std::cerr << "Error comparing file times: " << e.what() << std::endl;
-                 return false; // Maintain original order on error
-            }
-        });
-
-
-        // Process sorted valid files
-        for (const auto& path : stateFiles) {
-            std::string filename = path.filename().string();
-            std::string fullpath = path.string();
-            // Ensure consistent path separators
-            std::replace(fullpath.begin(), fullpath.end(), '\\', '/');
-
-            // --- Store separate pieces of info ---
-            std::string timestamp = parseTimestampFromFilename(filename);
-            int level = parseLevelFromSaveFile(fullpath);
-            std::string name = parseNameFromSaveFile(fullpath);
-
-            // --- MODIFIED: Explicitly construct SaveSlotInfo ---
-            saveSlots.push_back(SaveSlotInfo{ timestamp, level, name, fullpath, false });
-            // --- End Storing separate info ---
-        }
-
-    } catch (const fs::filesystem_error& e) {
-        std::cerr << "Filesystem error while reading saves: " << e.what() << std::endl;
-    } catch (const std::exception& e) {
-        // Catch other potential exceptions during file processing
-        std::cerr << "Error loading save files: " << e.what() << std::endl;
-    }
-
-    // Reset scroll position and default selection
-    scrollOffset = 0;
-    selectedSaveSlotIndex = 0; // Default selection back to "+ New Game"
-    std::cout << "Found " << saveSlots.size() -1 << " valid save files." << std::endl;
-}
-
-
+// --- Initialization & Cleanup ---
 
 void MenuScene::init() {
-    clean();
-    std::cout << "Initializing Menu Scene..." << std::endl;
+    clean(); // Clean up any previous state first
+    // std::cout << "Initializing Menu Scene..." << std::endl; // Removed log
     isEditingName = false;
     playerName = "";
 
-    // --- ADDED: Load sounds directly for MenuScene ---
+    // Load sounds
     startSound = Mix_LoadWAV("assets/sound/start.wav");
     clickSound = Mix_LoadWAV("assets/sound/buttonclick.wav");
     if (!startSound) { std::cerr << "Failed to load start.wav: " << Mix_GetError() << std::endl; }
     if (!clickSound) { std::cerr << "Failed to load buttonclick.wav: " << Mix_GetError() << std::endl; }
-    // --- END ADDED ---
 
-    // --- Load Textures (Order matters less for these) ---
+    // Load Textures
     backgroundTexture = loadTexture("assets/menu/bg.png");
     titleTexture = loadTexture("assets/menu/title.png");
     playButtonTexture = loadTexture("assets/menu/play.png");
@@ -227,24 +44,24 @@ void MenuScene::init() {
     soundOnTexture = loadTexture("assets/menu/soundon.png");
     soundOffTexture = loadTexture("assets/menu/soundoff.png");
     sliderTrackTexture = loadTexture("assets/menu/slidebar.png");
-    slideButtonTexture = loadTexture("assets/menu/slidebutton.png"); // Reuse if loaded for scrollbar
-    sliderButtonTexture = loadTexture("assets/menu/slidebutton.png");
-    // --- Load Fonts ---
+    slideButtonTexture = loadTexture("assets/menu/slidebutton.png");  // Load texture for scrollbar button
+    sliderButtonTexture = loadTexture("assets/menu/slidebutton.png"); // Load the same texture for volume slider buttons
+
+    // Load Fonts
     inputFont = TTF_OpenFont("assets/font.ttf", 20);
     saveSlotFont = TTF_OpenFont("assets/font.ttf", 18);
-    uiHintFont = TTF_OpenFont("assets/font.ttf", 12); // Font for hint text
+    uiHintFont = TTF_OpenFont("assets/font.ttf", 12);
 
-    // Basic Font Check/Fallback
-    if (!inputFont) { std::cerr << "Failed to load input font!" << std::endl; /* Add fallback if needed */ }
-    if (!saveSlotFont) { std::cerr << "Failed to load save slot font!" << std::endl; /* Add fallback if needed */ }
+    if (!inputFont) { std::cerr << "Failed to load input font!" << std::endl; }
+    if (!saveSlotFont) { std::cerr << "Failed to load save slot font!" << std::endl; }
     if (!uiHintFont) {
         std::cerr << "Failed to load hint font! Using save slot font as fallback." << std::endl;
-        if(saveSlotFont) uiHintFont = saveSlotFont; // Fallback
-        else if(inputFont) uiHintFont = inputFont; // Further fallback
+        if(saveSlotFont) uiHintFont = saveSlotFont;
+        else if(inputFont) uiHintFont = inputFont;
         else std::cerr << "FATAL: No valid font loaded for hints!" << std::endl;
     }
 
-    // --- Initialize Volume State ---
+    // Initialize Volume State from Game static members
     isMusicMuted = (Game::getMusicVolume() == 0);
     storedMusicVolumeBeforeMute = isMusicMuted ? (MIX_MAX_VOLUME / 2) : Game::getMusicVolume();
     isSfxMuted = (Game::getSfxVolume() == 0);
@@ -252,64 +69,612 @@ void MenuScene::init() {
     isDraggingBgmSlider = false;
     isDraggingSfxSlider = false;
 
-    // --- Load Save Files (Might affect selection state) ---
-    loadSaveFiles();
+    // Load Save Files
+    loadSaveFiles(); // This might reset selectedSaveSlotIndex
 
-    // --- Render Text Textures AFTER fonts are loaded ---
-    // Render Name Text Texture (Placeholder or loaded name)
-    updateNameTexture();
+    // Update Name Texture (Placeholder or loaded name)
+    updateNameTexture(); // Needs to happen after loadSaveFiles potentially sets playerName
 
     // Pre-render Fullscreen Hint Text Texture
-    if (uiHintFont && Game::renderer) { // Check font and renderer
-        SDL_Color hintColor = { 200, 200, 200, 255 }; // Light grey color
+    if (uiHintFont && Game::renderer) {
+        SDL_Color hintColor = { 200, 200, 200, 255 };
         SDL_Surface* surface = TTF_RenderText_Blended(uiHintFont, "F11: Fullscreen", hintColor);
         if(surface) {
-            // Destroy previous texture if any
-            if (fullscreenTextTex) { SDL_DestroyTexture(fullscreenTextTex); fullscreenTextTex = nullptr; }
+            if (fullscreenTextTex) { SDL_DestroyTexture(fullscreenTextTex); } // Clean previous if any
             fullscreenTextTex = SDL_CreateTextureFromSurface(Game::renderer, surface);
             SDL_FreeSurface(surface);
-            if (!fullscreenTextTex) {
-                std::cerr << "Failed to create fullscreen hint texture! SDL Error: " << SDL_GetError() << std::endl;
-            } else {
-                 std::cout << "DEBUG: fullscreenTextTex created successfully." << std::endl;
-            }
-        } else {
-            std::cerr << "Failed to render fullscreen hint surface! TTF Error: " << TTF_GetError() << std::endl;
-        }
+            if (!fullscreenTextTex) { std::cerr << "Failed to create fullscreen hint texture! SDL Error: " << SDL_GetError() << std::endl; }
+        } else { std::cerr << "Failed to render fullscreen hint surface! TTF Error: " << TTF_GetError() << std::endl; }
     } else {
         if(!uiHintFont) std::cerr << "Cannot render hint text: uiHintFont is null." << std::endl;
         if(!Game::renderer) std::cerr << "Cannot render hint text: Game::renderer is null." << std::endl;
     }
 
-    // --- BGM Handling ---
+    // Start Menu BGM
     Mix_HaltMusic();
-    const char* menuMusicPath = "assets/sound/menubgm.mp3";
-    if (menuMusic) { Mix_FreeMusic(menuMusic); menuMusic = nullptr; } // Free old music if any
-    menuMusic = Mix_LoadMUS(menuMusicPath);
-    if (!menuMusic) { /* ... error log ... */ }
+    if (menuMusic) { Mix_FreeMusic(menuMusic); menuMusic = nullptr; }
+    menuMusic = Mix_LoadMUS("assets/sound/menubgm.mp3");
     if (menuMusic) {
-         if (Mix_PlayMusic(menuMusic, -1) == -1) { /* ... error log ... */ }
+         if (Mix_PlayMusic(menuMusic, -1) == -1) { std::cerr << "Failed to play menu BGM: " << Mix_GetError() << std::endl; }
          else { Mix_VolumeMusic(Game::getMusicVolume()); } // Apply current volume
-    }
-    // --- End BGM Handling ---
+    } else { std::cerr << "Failed to load menu BGM!" << std::endl; }
 
+    // Calculate Initial Layout
+    int w = 800, h = 600; // Default size
+    if (Game::renderer) { SDL_GetRendererOutputSize(Game::renderer, &w, &h); }
+    else { std::cerr << "Renderer not available during MenuScene init for layout calc!" << std::endl; }
+    calculateLayout(w, h);
 
-    // --- Calculate Initial Layout AFTER all assets potentially affecting it are loaded/created ---
-    int w, h;
-    if (Game::renderer) {
-        SDL_GetRendererOutputSize(Game::renderer, &w, &h);
-        calculateLayout(w, h); // Now calculate layout
-    } else {
-        std::cerr << "Renderer not available during MenuScene init for layout calc!" << std::endl;
-        w = 800; h = 600;
-        calculateLayout(w, h); // Attempt layout with default size
-    }
-
-    std::cout << "Menu Scene Initialized." << std::endl;
+    // std::cout << "Menu Scene Initialized." << std::endl; // Removed log
 }
 
-// Replace the existing calculateLayout function in Game/src/Scene/MenuScene.cpp
+void MenuScene::clean() {
+    // Destroy Textures
+    if (backgroundTexture) { SDL_DestroyTexture(backgroundTexture); backgroundTexture = nullptr; }
+    if (titleTexture) { SDL_DestroyTexture(titleTexture); titleTexture = nullptr; }
+    if (playButtonTexture) { SDL_DestroyTexture(playButtonTexture); playButtonTexture = nullptr; }
+    if (nameBoxTexture) { SDL_DestroyTexture(nameBoxTexture); nameBoxTexture = nullptr; }
+    if (nameTextTexture) { SDL_DestroyTexture(nameTextTexture); nameTextTexture = nullptr; }
+    if (slideButtonTexture) { SDL_DestroyTexture(slideButtonTexture); slideButtonTexture = nullptr; }
+    if (sliderButtonTexture) { SDL_DestroyTexture(sliderButtonTexture); sliderButtonTexture = nullptr; } // Clean the second button texture
+    if (soundOnTexture) { SDL_DestroyTexture(soundOnTexture); soundOnTexture = nullptr; }
+    if (soundOffTexture) { SDL_DestroyTexture(soundOffTexture); soundOffTexture = nullptr; }
+    if (sliderTrackTexture) { SDL_DestroyTexture(sliderTrackTexture); sliderTrackTexture = nullptr; }
+    if (fullscreenTextTex) { SDL_DestroyTexture(fullscreenTextTex); fullscreenTextTex = nullptr; }
 
+    // Close Fonts
+    if (inputFont) { TTF_CloseFont(inputFont); inputFont = nullptr; }
+    if (saveSlotFont) { TTF_CloseFont(saveSlotFont); saveSlotFont = nullptr; }
+    // Close uiHintFont ONLY if it's different and was loaded
+    if (uiHintFont && uiHintFont != saveSlotFont && uiHintFont != inputFont) { TTF_CloseFont(uiHintFont); }
+    uiHintFont = nullptr;
+
+    // Stop and Free Audio
+    Mix_HaltMusic();
+    if (menuMusic) { Mix_FreeMusic(menuMusic); menuMusic = nullptr; }
+    if (startSound) { Mix_FreeChunk(startSound); startSound = nullptr; }
+    if (clickSound) { Mix_FreeChunk(clickSound); clickSound = nullptr; }
+
+    // std::cout << "Menu Scene Cleaned." << std::endl; // Removed log
+}
+
+// --- Helper Functions ---
+
+SDL_Texture* MenuScene::loadTexture(const std::string& path) {
+     SDL_Texture* newTexture = TextureManager::LoadTexture(path.c_str());
+     if (newTexture == nullptr) {
+         // Error logged in TextureManager::LoadTexture
+         // std::cerr << "Failed to load texture: " << path << std::endl; // Keep TextureManager's log
+     }
+     return newTexture;
+}
+
+void MenuScene::updateNameTexture() {
+    if (nameTextTexture) {
+        SDL_DestroyTexture(nameTextTexture);
+        nameTextTexture = nullptr;
+    }
+    originalNameTextW = 0; // Reset original dimensions
+    originalNameTextH = 0;
+
+    if (!inputFont || !Game::renderer) {
+         std::cerr << "Cannot update name texture: Font or Renderer is null!" << std::endl;
+         return;
+    }
+
+    std::string textToRender = playerName;
+    SDL_Color colorToUse = inputTextColor;
+
+    // Determine text and color for placeholder display
+    if (selectedSaveSlotIndex == 0 && !isEditingName && playerName.empty()) {
+        textToRender = "Enter Name (Optional)";
+        colorToUse = placeholderTextColor;
+    } else if (playerName.empty() && isEditingName) {
+         // If editing and empty, don't render texture, just let cursor show
+         int w = 800, h = 600; if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h);
+         calculateLayout(w, h); // Recalculate for cursor position
+         return;
+    } else if (playerName.empty()) {
+        // If not editing, not placeholder, and empty (e.g., loaded empty name), don't render
+        return;
+    }
+
+
+    SDL_Surface* textSurface = TTF_RenderText_Blended(inputFont, textToRender.c_str(), colorToUse);
+    if (!textSurface) {
+        std::cerr << "Unable to render name text surface! SDL_ttf Error: " << TTF_GetError() << std::endl;
+        return;
+    }
+
+    nameTextTexture = SDL_CreateTextureFromSurface(Game::renderer, textSurface);
+    if (!nameTextTexture) {
+        std::cerr << "Unable to create name text texture! SDL Error: " << SDL_GetError() << std::endl;
+    } else {
+        originalNameTextW = textSurface->w; // Store original dimensions
+        originalNameTextH = textSurface->h;
+    }
+    SDL_FreeSurface(textSurface);
+
+    // Recalculate layout after updating texture size
+    int w = 800, h = 600; if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h);
+    calculateLayout(w,h);
+}
+
+std::string MenuScene::parseTimestampFromFilename(const std::string& filename) {
+    size_t last_slash_idx = filename.find_last_of("\\/");
+    std::string name_only = (last_slash_idx == std::string::npos) ? filename : filename.substr(last_slash_idx + 1);
+    size_t dot_idx = name_only.rfind(".state");
+    if (dot_idx == std::string::npos) return "Invalid Save"; // Handle case with no extension
+
+    std::string timestamp_str = name_only.substr(0, dot_idx);
+    // Check for expected timestamp format DDMMYYYY-HHMMSS
+    if (timestamp_str.length() == 15 && timestamp_str[8] == '-' && timestamp_str.find_first_not_of("0123456789-") == std::string::npos) {
+        // Basic format check passed, format it nicely
+        return timestamp_str.substr(0, 2) + "/" + timestamp_str.substr(2, 2) + "/" + timestamp_str.substr(4, 4) +
+               " " + timestamp_str.substr(9, 2) + ":" + timestamp_str.substr(11, 2); // Removed seconds
+    }
+    // If not the expected format, return the raw stem or a placeholder
+    return timestamp_str.empty() ? "Invalid Save" : timestamp_str;
+}
+
+int MenuScene::parseLevelFromSaveFile(const std::string& filepath) {
+    std::ifstream saveFile(filepath);
+    if (!saveFile.is_open()) return 1; // Default level 1 if file cannot be opened
+    std::string line, key, value;
+    int level = 1; // Default level
+    while (std::getline(saveFile, line)) {
+        std::size_t separatorPos = line.find(':');
+        if (separatorPos == std::string::npos) continue;
+        key = line.substr(0, separatorPos);
+        value = line.substr(separatorPos + 1);
+        if (key == "PlayerLevel") {
+            try { level = std::stoi(value); }
+            catch (...) { level = 1; } // Reset to 1 on conversion error
+            break; // Found level, no need to read further
+        }
+    }
+    saveFile.close();
+    return std::max(1, level); // Ensure level is at least 1
+}
+
+std::string MenuScene::parseNameFromSaveFile(const std::string& filepath) {
+    std::ifstream saveFile(filepath);
+    if (!saveFile.is_open()) {
+        return "Player"; // Default if file cannot be opened
+    }
+    std::string line, key, value;
+    std::string name = "Player"; // Default name
+    while (std::getline(saveFile, line)) {
+        std::size_t separatorPos = line.find(':');
+        if (separatorPos == std::string::npos) continue;
+        key = line.substr(0, separatorPos);
+        value = line.substr(separatorPos + 1);
+        if (key == "PlayerName") {
+            name = value;
+            if (name.empty()) { name = "Player"; } // Use default if loaded name is empty
+            break; // Found name, exit loop
+        }
+    }
+    saveFile.close();
+    return name;
+}
+
+void MenuScene::loadSaveFiles() {
+    // std::cout << "Loading save files..." << std::endl; // Removed log
+    saveSlots.clear();
+    saveSlots.push_back(SaveSlotInfo{ "", 0, "Player", "", true }); // Add "+ New Game" slot
+
+    std::string saveDir = "saves";
+    std::vector<fs::path> stateFiles;
+
+    try {
+        if (!fs::exists(saveDir)) { // Create directory if it doesn't exist
+            // std::cout << "'saves' directory not found. Creating..." << std::endl; // Removed log
+            if (!fs::create_directory(saveDir)) {
+                 std::cerr << "Failed to create 'saves' directory!" << std::endl;
+            }
+        }
+
+        if (fs::is_directory(saveDir)) { // Proceed only if it's a directory
+            for (const auto& entry : fs::directory_iterator(saveDir)) {
+                std::string filename_str = entry.path().filename().string();
+                // Skip specific system files
+                if (filename_str == "default.state" || filename_str == "quicksave.state") {
+                    continue;
+                }
+                if (entry.is_regular_file() && entry.path().extension() == ".state") {
+                    stateFiles.push_back(entry.path());
+                }
+            }
+
+            // Sort by last write time (latest first)
+            std::sort(stateFiles.begin(), stateFiles.end(), [](const fs::path& a, const fs::path& b) {
+                try {
+                    if (!fs::exists(a) || !fs::exists(b)) return false; // Handle deleted files
+                    return fs::last_write_time(a) > fs::last_write_time(b);
+                } catch (const fs::filesystem_error& e) {
+                    std::cerr << "Error comparing file times: " << e.what() << std::endl;
+                    return false;
+                }
+            });
+
+            // Process sorted files
+            for (const auto& path : stateFiles) {
+                std::string filename = path.filename().string();
+                std::string fullpath = path.string();
+                std::replace(fullpath.begin(), fullpath.end(), '\\', '/'); // Ensure consistent separators
+
+                std::string timestamp = parseTimestampFromFilename(filename);
+                int level = parseLevelFromSaveFile(fullpath);
+                std::string name = parseNameFromSaveFile(fullpath);
+
+                saveSlots.push_back(SaveSlotInfo{ timestamp, level, name, fullpath, false });
+            }
+        } else {
+            std::cerr << "'saves' exists but is not a directory." << std::endl;
+        }
+
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Filesystem error while reading saves: " << e.what() << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Error loading save files: " << e.what() << std::endl;
+    }
+
+    // Reset scroll and selection
+    scrollOffset = 0;
+    selectedSaveSlotIndex = 0; // Default to "+ New Game"
+    // std::cout << "Found " << (saveSlots.size() > 0 ? saveSlots.size() - 1 : 0) << " valid save files." << std::endl; // Removed log
+}
+
+// --- Scene Methods ---
+
+void MenuScene::handleEvents(SDL_Event& event) {
+    int mouseX, mouseY;
+    SDL_GetMouseState(&mouseX, &mouseY);
+    SDL_Point mousePoint = {mouseX, mouseY};
+
+    // Window Resize Handling
+    if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_RESIZED) {
+         updateNameTexture(); // Update name texture first in case font size needs recalculating
+         int w = 800, h = 600; if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h);
+         calculateLayout(w, h); // Recalculate full layout
+    }
+    // Mouse Wheel Scroll for Save List
+    else if (event.type == SDL_MOUSEWHEEL) {
+        bool canScroll = saveSlots.size() > visibleSlotsCount;
+        SDL_Rect scrollArea = saveListAreaRect; // Base scroll area is the list itself
+        if (scrollbarTrackRect.w > 0) { // Expand scroll area to include track if visible
+             scrollArea.w += scrollbarTrackRect.w + (scrollbarTrackRect.x - (saveListAreaRect.x + saveListAreaRect.w));
+             scrollArea.h = std::max(scrollArea.h, scrollbarTrackRect.h);
+        }
+
+        if (canScroll && SDL_PointInRect(&mousePoint, &scrollArea)) {
+            int oldOffset = scrollOffset;
+            if (event.wheel.y > 0) scrollOffset--; // Scroll Up
+            else if (event.wheel.y < 0) scrollOffset++; // Scroll Down
+
+            int maxScrollOffset = std::max(0, static_cast<int>(saveSlots.size()) - visibleSlotsCount);
+            scrollOffset = std::max(0, std::min(scrollOffset, maxScrollOffset)); // Clamp
+
+            if(oldOffset != scrollOffset) { // Only recalculate layout if offset changed
+                 int w = 800, h = 600; if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h);
+                 calculateLayout(w, h); // Update scrollbar button position
+            }
+        }
+    }
+    // Mouse Button Down Logic
+     else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
+         bool playClickSoundFlag = false; // Flag to play generic click sound
+
+         // Check UI Element Clicks (Order matters for overlapping elements)
+         if (SDL_PointInRect(&mousePoint, &playButtonRect)) {
+             // Play Button Action
+             if (isEditingName) { isEditingName = false; SDL_StopTextInput(); updateNameTexture(); } // Stop editing if active
+             if(startSound) Mix_PlayChannel(-1, startSound, 0); // Play specific start sound
+             playClickSoundFlag = false; // Don't play generic click
+
+             if (selectedSaveSlotIndex >= 0 && selectedSaveSlotIndex < saveSlots.size()) {
+                 const auto& selectedSlot = saveSlots[selectedSaveSlotIndex];
+                 Scene* gameScenePtr = SceneManager::instance->getScene(SceneType::Game);
+                 GameScene* gameScene = dynamic_cast<GameScene*>(gameScenePtr);
+
+                 if (!gameScene) { std::cerr << "Error: Could not get/cast GameScene!" << std::endl; return; }
+
+                 gameScene->resetGame(); // Resets/Cleans the existing game instance
+                 gameScene->init();    // Creates/Initializes a new game instance
+
+                 if (!Game::instance) { std::cerr << "Error: Game::instance is null after GameScene init!" << std::endl; return; }
+
+                 if (selectedSlot.isNewGameOption) {
+                      Game::instance->setPlayerName(this->playerName);
+                 } else {
+                      if (Game::instance->saveLoadManager) {
+                           if (!Game::instance->saveLoadManager->loadGameState(selectedSlot.filename)) {
+                                std::cerr << "Failed to load game state: " << selectedSlot.filename << std::endl; return; // Don't switch scene if load failed
+                           }
+                           this->playerName = Game::instance->getPlayerName(); // Update display name
+                           updateNameTexture();
+                      } else { std::cerr << "Critical Error: SaveLoadManager not available!" << std::endl; return; }
+                 }
+                 SceneManager::instance->switchToScene(SceneType::Game); // Switch after successful setup/load
+             } else { std::cerr << "Error: Invalid selected save slot index." << std::endl; }
+             return; // Play button action handled
+
+         } else if (SDL_PointInRect(&mousePoint, &bgmIconRect)) {
+             // Mute BGM Icon
+             bool wasMuted = (Game::getMusicVolume() == 0);
+             if (!wasMuted) { storedMusicVolumeBeforeMute = Game::getMusicVolume(); Game::setMusicVolume(0); }
+             else { Game::setMusicVolume(storedMusicVolumeBeforeMute > 0 ? storedMusicVolumeBeforeMute : MIX_MAX_VOLUME / 4); storedMusicVolumeBeforeMute = Game::getMusicVolume(); }
+             isMusicMuted = (Game::getMusicVolume() == 0);
+             if(menuMusic) Mix_VolumeMusic(Game::getMusicVolume());
+             playClickSoundFlag = true;
+
+         } else if (SDL_PointInRect(&mousePoint, &sfxIconRect)) {
+             // Mute SFX Icon
+             bool wasMuted = (Game::getSfxVolume() == 0);
+             if (!wasMuted) { storedSfxVolumeBeforeMute = Game::getSfxVolume(); Game::setSfxVolume(0); }
+             else { Game::setSfxVolume(storedSfxVolumeBeforeMute > 0 ? storedSfxVolumeBeforeMute : MIX_MAX_VOLUME / 4); storedSfxVolumeBeforeMute = Game::getSfxVolume(); }
+             isSfxMuted = (Game::getSfxVolume() == 0);
+             playClickSoundFlag = true;
+
+         } else if (SDL_PointInRect(&mousePoint, &bgmSliderButtonRect)) {
+             // Start Drag BGM Slider
+             isDraggingBgmSlider = true; sliderDragStartX = mouseX - bgmSliderButtonRect.x; playClickSoundFlag = true;
+         } else if (SDL_PointInRect(&mousePoint, &sfxSliderButtonRect)) {
+             // Start Drag SFX Slider
+             isDraggingSfxSlider = true; sliderDragStartX = mouseX - sfxSliderButtonRect.x; playClickSoundFlag = true;
+         } else if (saveSlots.size() > visibleSlotsCount && SDL_PointInRect(&mousePoint, &scrollbarButtonRect)) {
+             // Start Drag Scrollbar
+              if (!isDraggingScrollbar) { isDraggingScrollbar = true; scrollbarDragStartY = mouseY - scrollbarButtonRect.y; playClickSoundFlag = true; }
+         } else if (SDL_PointInRect(&mousePoint, &nameInputBoxRect)) {
+             // Activate Name Input (Only for New Game slot)
+              if (!isEditingName && selectedSaveSlotIndex == 0) {
+                  isEditingName = true; SDL_StartTextInput(); updateNameTexture(); playClickSoundFlag = true;
+              }
+         } else {
+             // Check Save Slot Clicks
+             bool clickedOnSlot = false;
+             for (int i = 0; i < visibleSlotsCount; ++i) {
+                 int actualIndex = scrollOffset + i;
+                 if (actualIndex >= 0 && actualIndex < saveSlots.size()) {
+                     if (SDL_PointInRect(&mousePoint, &visibleSaveSlotRects[i])) {
+                         if (selectedSaveSlotIndex != actualIndex) {
+                             selectedSaveSlotIndex = actualIndex;
+                             if (saveSlots[actualIndex].isNewGameOption) {
+                                 playerName = "";
+                                 if (!isEditingName) { isEditingName = true; SDL_StartTextInput(); }
+                             } else {
+                                 if (isEditingName) { isEditingName = false; SDL_StopTextInput(); }
+                                 playerName = saveSlots[actualIndex].playerName;
+                             }
+                             updateNameTexture();
+                         }
+                         playClickSoundFlag = true; clickedOnSlot = true; break;
+                     }
+                 }
+             }
+
+             // Click Outside Interactive Elements
+             if (!clickedOnSlot && isEditingName) {
+                  isEditingName = false; SDL_StopTextInput(); updateNameTexture();
+             }
+         }
+
+         // Play generic click sound if flagged
+         if (playClickSoundFlag && clickSound) { Mix_PlayChannel(-1, clickSound, 0); }
+
+         // Recalculate layout if mute state or slider drag might have changed positions
+         if (playClickSoundFlag) { // Check if layout needs recalculation
+              int w = 800, h = 600; if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h);
+              calculateLayout(w, h);
+         }
+     } // End Mouse Button Down Event
+
+     // --- Mouse Button Up ---
+     else if (event.type == SDL_MOUSEBUTTONUP && event.button.button == SDL_BUTTON_LEFT) {
+          if (isDraggingScrollbar || isDraggingBgmSlider || isDraggingSfxSlider) {
+               isDraggingScrollbar = false; isDraggingBgmSlider = false; isDraggingSfxSlider = false;
+               // std::cout << "Slider/Scrollbar drag ended." << std::endl; // Removed log
+          }
+     }
+     // --- Mouse Motion (Dragging) ---
+     else if (event.type == SDL_MOUSEMOTION) {
+          int w = 800, h = 600; if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h);
+          if (isDraggingBgmSlider) {
+                int trackX = bgmSliderTrackRect.x; int trackButtonW = bgmSliderButtonRect.w; int trackW = std::max(1, bgmSliderTrackRect.w - trackButtonW);
+                int targetButtonX = std::max(trackX, std::min(mouseX - sliderDragStartX, trackX + trackW));
+                float percent = (trackW > 0) ? static_cast<float>(targetButtonX - trackX) / trackW : 0.0f;
+                int newVolume = static_cast<int>(std::round(percent * MIX_MAX_VOLUME));
+                if (newVolume != Game::getMusicVolume()) {
+                     Game::setMusicVolume(newVolume); isMusicMuted = (newVolume == 0);
+                     if(!isMusicMuted) storedMusicVolumeBeforeMute = newVolume;
+                     if(menuMusic) Mix_VolumeMusic(newVolume); calculateLayout(w, h);
+                }
+          } else if (isDraggingSfxSlider) {
+                int trackX = sfxSliderTrackRect.x; int trackButtonW = sfxSliderButtonRect.w; int trackW = std::max(1, sfxSliderTrackRect.w - trackButtonW);
+                int targetButtonX = std::max(trackX, std::min(mouseX - sliderDragStartX, trackX + trackW));
+                float percent = (trackW > 0) ? static_cast<float>(targetButtonX - trackX) / trackW : 0.0f;
+                int newVolume = static_cast<int>(std::round(percent * MIX_MAX_VOLUME));
+                if (newVolume != Game::getSfxVolume()) {
+                     Game::setSfxVolume(newVolume); isSfxMuted = (newVolume == 0);
+                     if(!isSfxMuted) storedSfxVolumeBeforeMute = newVolume; calculateLayout(w, h);
+                }
+          } else if (isDraggingScrollbar) {
+              int scrollTrackHeight = std::max(1, scrollbarTrackRect.h - scrollbarButtonRect.h);
+              int targetButtonTop = std::max(scrollbarTrackRect.y, std::min(mouseY - scrollbarDragStartY, scrollbarTrackRect.y + scrollTrackHeight));
+              float percentageScrolled = (scrollTrackHeight > 0) ? static_cast<float>(targetButtonTop - scrollbarTrackRect.y) / scrollTrackHeight : 0.0f;
+              int maxScrollOffset = std::max(0, static_cast<int>(saveSlots.size()) - visibleSlotsCount);
+              int newOffset = static_cast<int>(std::round(percentageScrolled * maxScrollOffset));
+              if (newOffset != scrollOffset) { scrollOffset = newOffset; calculateLayout(w, h); }
+          }
+     }
+     // --- Text Input ---
+     else if (event.type == SDL_TEXTINPUT && isEditingName) {
+         const int MAX_NAME_LENGTH = 15;
+         if (playerName.length() < MAX_NAME_LENGTH) {
+              playerName += event.text.text;
+              updateNameTexture(); // Update display
+         }
+     }
+     // --- Key Down ---
+     else if (event.type == SDL_KEYDOWN) {
+         if (isEditingName) {
+             if (event.key.keysym.sym == SDLK_BACKSPACE && !playerName.empty()) {
+                 playerName.pop_back(); updateNameTexture();
+             } else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_KP_ENTER) {
+                  isEditingName = false; SDL_StopTextInput(); updateNameTexture();
+             } else if (event.key.keysym.sym == SDLK_ESCAPE) {
+                  isEditingName = false; SDL_StopTextInput(); playerName = ""; updateNameTexture(); // Clear name on Escape
+             }
+         } else if (event.key.keysym.sym == SDLK_ESCAPE) { // Global escape quits
+             // std::cout << "Exit requested from Menu" << std::endl; // Removed log
+             SDL_Event quitEvent; quitEvent.type = SDL_QUIT; SDL_PushEvent(&quitEvent);
+         }
+     } // End Key Down Event
+} // End handleEvents
+
+void MenuScene::update() {
+    // Nothing typically needs continuous updating here
+}
+
+void MenuScene::render() {
+    if (!Game::renderer) { return; }
+    SDL_SetRenderDrawColor(Game::renderer, 0, 0, 0, 255); // Black background fallback
+    SDL_RenderClear(Game::renderer);
+
+    // Render Background & Center Column
+    if (backgroundTexture) SDL_RenderCopy(Game::renderer, backgroundTexture, NULL, &backgroundRect);
+    if (titleTexture) SDL_RenderCopy(Game::renderer, titleTexture, NULL, &titleRect);
+    if (playButtonTexture) SDL_RenderCopy(Game::renderer, playButtonTexture, NULL, &playButtonRect);
+    if (nameBoxTexture) SDL_RenderCopy(Game::renderer, nameBoxTexture, NULL, &nameInputBoxRect);
+    if (nameTextTexture) SDL_RenderCopy(Game::renderer, nameTextTexture, NULL, &nameTextRect);
+
+    // Render Save List
+    int slotsToDraw = std::min(visibleSlotsCount, static_cast<int>(saveSlots.size()) - scrollOffset);
+    for (int i = 0; i < slotsToDraw; ++i) {
+        int actualIndex = scrollOffset + i;
+        if (actualIndex < 0 || actualIndex >= saveSlots.size()) continue;
+
+        const auto& currentSlot = saveSlots[actualIndex];
+        SDL_Rect currentSlotRect = visibleSaveSlotRects[i];
+
+        // Draw box background (with selection tint)
+        if (nameBoxTexture) {
+            SDL_Color tint = (actualIndex == selectedSaveSlotIndex) ? SDL_Color{200, 200, 255, 255} : SDL_Color{255, 255, 255, 255};
+            SDL_SetTextureColorMod(nameBoxTexture, tint.r, tint.g, tint.b);
+            SDL_RenderCopy(Game::renderer, nameBoxTexture, NULL, &currentSlotRect);
+            SDL_SetTextureColorMod(nameBoxTexture, 255, 255, 255); // Reset tint
+        }
+
+        // Render text directly within the box
+        if (saveSlotFont) {
+            std::string textStr = currentSlot.isNewGameOption ? "+ New Game" :
+                                  (actualIndex == selectedSaveSlotIndex ? (currentSlot.playerName + " Lvl " + std::to_string(currentSlot.level)) : currentSlot.timestamp);
+            SDL_Color colorToUse = (actualIndex == selectedSaveSlotIndex) ? saveSlotTextColorSelected : saveSlotTextColorDefault;
+
+            SDL_Surface* surface = TTF_RenderText_Blended(saveSlotFont, textStr.c_str(), colorToUse);
+            if (surface) {
+                SDL_Texture* textTexture = SDL_CreateTextureFromSurface(Game::renderer, surface);
+                if (textTexture) {
+                     int w = 800, h = 600; if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h);
+                     float scaleX = static_cast<float>(w) / referenceWidth; float scaleY = static_cast<float>(h) / referenceHeight;
+                     float scaleFactor = std::max(std::min(scaleX, scaleY), 0.8f);
+                     float saveSlotTextScale = std::max(scaleFactor * 0.9f, 0.72f); // Consistent scale calc
+
+                    SDL_Rect textDestRect;
+                    textDestRect.w = static_cast<int>(surface->w * saveSlotTextScale);
+                    textDestRect.h = static_cast<int>(surface->h * saveSlotTextScale);
+                    textDestRect.x = currentSlotRect.x + (currentSlotRect.w - textDestRect.w) / 2;
+                    textDestRect.y = currentSlotRect.y + (currentSlotRect.h - textDestRect.h) / 2;
+
+                    SDL_RenderCopy(Game::renderer, textTexture, NULL, &textDestRect);
+                    SDL_DestroyTexture(textTexture);
+                } else { std::cerr << "Failed to create texture for save slot text: " << textStr << std::endl; }
+                SDL_FreeSurface(surface);
+            } else { std::cerr << "Failed to render text surface for save slot: " << textStr << std::endl; }
+        }
+    } // End loop through visible slots
+
+    // Render Scrollbar (if needed)
+    bool needsScrollbar = saveSlots.size() > visibleSlotsCount;
+    if (needsScrollbar) {
+        // Draw Track Background
+        SDL_SetRenderDrawBlendMode(Game::renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(Game::renderer, 80, 80, 80, 150);
+        SDL_RenderFillRect(Game::renderer, &scrollbarTrackRect);
+        SDL_SetRenderDrawBlendMode(Game::renderer, SDL_BLENDMODE_NONE);
+
+        // Render Button (using slideButtonTexture for scrollbar)
+        if (slideButtonTexture) {
+             SDL_Color tint = isDraggingScrollbar ? SDL_Color{200, 200, 200, 255} : SDL_Color{255, 255, 255, 255};
+             SDL_SetTextureColorMod(slideButtonTexture, tint.r, tint.g, tint.b);
+             SDL_RenderCopy(Game::renderer, slideButtonTexture, NULL, &scrollbarButtonRect);
+             SDL_SetTextureColorMod(slideButtonTexture, 255, 255, 255); // Reset tint
+        }
+    }
+
+    // Render Cursor in Name Box (if editing "+ New Game")
+    if (isEditingName && selectedSaveSlotIndex == 0) {
+        Uint32 ticks = SDL_GetTicks();
+        if (ticks % 1000 < 500) { // Blink cursor
+            SDL_SetRenderDrawColor(Game::renderer, inputTextColor.r, inputTextColor.g, inputTextColor.b, 255);
+
+            // Calculate cursor dimensions based on scale
+             int w = 800, h = 600; if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h);
+             float scaleX = static_cast<float>(w) / referenceWidth; float scaleY = static_cast<float>(h) / referenceHeight;
+             float scaleFactor = std::max(std::min(scaleX, scaleY), 0.8f);
+             float textScale = std::max(scaleFactor * 0.8f, 0.64f); // Consistent scale
+
+            int cursorW = std::max(1, static_cast<int>(2.0f * textScale)); // Scaled cursor width
+            int cursorPadding = std::max(1, static_cast<int>(2.0f * textScale));
+            int cursorH = nameTextRect.h > 0 ? nameTextRect.h : std::max(1, nameInputBoxRect.h - 2 * cursorPadding); // Use text height or box height
+
+            int cursorX;
+            if (nameTextRect.w > 0) { cursorX = nameTextRect.x + nameTextRect.w + cursorPadding; } // After text
+            else { cursorX = nameInputBoxRect.x + cursorPadding * 2; } // At start of box if no text
+
+            int cursorY = (nameTextRect.h > 0) ? nameTextRect.y : (nameInputBoxRect.y + (nameInputBoxRect.h - cursorH) / 2); // Align with text or center in box
+
+            cursorX = std::min(cursorX, nameInputBoxRect.x + nameInputBoxRect.w - cursorW - cursorPadding); // Clamp X
+            cursorX = std::max(nameInputBoxRect.x + cursorPadding, cursorX);
+
+            SDL_Rect cursorRect = {cursorX, cursorY, cursorW, cursorH};
+            SDL_RenderFillRect(Game::renderer, &cursorRect);
+        }
+    }
+
+    // Render Volume Controls
+    SDL_Texture* bgmIconTex = isMusicMuted ? soundOffTexture : soundOnTexture;
+    SDL_Texture* sfxIconTex = isSfxMuted ? soundOffTexture : soundOnTexture;
+
+    if (bgmIconTex) SDL_RenderCopy(Game::renderer, bgmIconTex, NULL, &bgmIconRect);
+    if (sfxIconTex) SDL_RenderCopy(Game::renderer, sfxIconTex, NULL, &sfxIconRect);
+    if (sliderTrackTexture) {
+        SDL_RenderCopy(Game::renderer, sliderTrackTexture, NULL, &bgmSliderTrackRect);
+        SDL_RenderCopy(Game::renderer, sliderTrackTexture, NULL, &sfxSliderTrackRect);
+    }
+    // Render Volume Slider Buttons (using sliderButtonTexture)
+    if (sliderButtonTexture) {
+        SDL_Color bgmTint = isDraggingBgmSlider ? SDL_Color{200, 200, 200, 255} : SDL_Color{255, 255, 255, 255};
+        SDL_SetTextureColorMod(sliderButtonTexture, bgmTint.r, bgmTint.g, bgmTint.b);
+        SDL_RenderCopy(Game::renderer, sliderButtonTexture, NULL, &bgmSliderButtonRect);
+
+        SDL_Color sfxTint = isDraggingSfxSlider ? SDL_Color{200, 200, 200, 255} : SDL_Color{255, 255, 255, 255};
+        SDL_SetTextureColorMod(sliderButtonTexture, sfxTint.r, sfxTint.g, sfxTint.b);
+        SDL_RenderCopy(Game::renderer, sliderButtonTexture, NULL, &sfxSliderButtonRect);
+
+        SDL_SetTextureColorMod(sliderButtonTexture, 255, 255, 255); // Reset tint
+    }
+
+    // Render Fullscreen Hint
+    if (fullscreenTextTex) {
+        SDL_RenderCopy(Game::renderer, fullscreenTextTex, NULL, &fullscreenTextRect);
+    }
+
+    SDL_RenderPresent(Game::renderer);
+}
+
+// --- Layout Calculation ---
 void MenuScene::calculateLayout(int windowWidth, int windowHeight) {
     // --- Background ---
     backgroundRect = { 0, 0, windowWidth, windowHeight };
@@ -481,11 +846,6 @@ void MenuScene::calculateLayout(int windowWidth, int windowHeight) {
     if (fullscreenTextTex) {
         // Get texture dimensions
         SDL_QueryTexture(fullscreenTextTex, NULL, NULL, &fullscreenTextRect.w, &fullscreenTextRect.h);
-        // Scale slightly? Or keep original small size? Let's keep original for now.
-        // float hintTextScale = scaleFactor * 0.7f; // Example scaling
-        // fullscreenTextRect.w = static_cast<int>(fullscreenTextRect.w * hintTextScale);
-        // fullscreenTextRect.h = static_cast<int>(fullscreenTextRect.h * hintTextScale);
-
         // Position above volume controls, aligned right with control area
         fullscreenTextRect.x = controlAreaX + controlAreaWidth - fullscreenTextRect.w; // Align right
         fullscreenTextRect.y = controlAreaY - fullscreenTextRect.h - paddingY / 2; // Place above volume area with padding
@@ -495,565 +855,4 @@ void MenuScene::calculateLayout(int windowWidth, int windowHeight) {
     } else {
         fullscreenTextRect = {0,0,0,0}; // Reset if texture is null
     }
-}
-
-
-
-// --- handleEvents (Removed scrollbar dragging logic related to track texture, mouse capture) ---
-// Replace the existing handleEvents function in Game/src/Scene/MenuScene.cpp with this complete version:
-
-void MenuScene::handleEvents(SDL_Event& event) {
-    int mouseX, mouseY;
-    SDL_GetMouseState(&mouseX, &mouseY);
-    SDL_Point mousePoint = {mouseX, mouseY};
-
-    // --- Window Resize Handling ---
-    if (event.type == SDL_WINDOWEVENT) {
-        if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
-             updateNameTexture();
-             // Recalculate layout to resize and reposition everything
-             int w, h;
-             if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h); else { w = 800; h = 600;}
-             calculateLayout(w, h);
-        }
-    }
-    // --- Mouse Wheel Scroll ---
-    else if (event.type == SDL_MOUSEWHEEL) {
-        bool canScroll = saveSlots.size() > visibleSlotsCount;
-        SDL_Rect scrollArea = saveListAreaRect;
-        if (scrollbarTrackRect.w > 0) { // Include track area only if scrollbar is visible
-             scrollArea.w += scrollbarTrackRect.w + (scrollbarTrackRect.x - (saveListAreaRect.x + saveListAreaRect.w));
-             scrollArea.h = std::max(scrollArea.h, scrollbarTrackRect.h); // Ensure height covers track too
-        }
-
-        if (canScroll && SDL_PointInRect(&mousePoint, &scrollArea)) {
-            int oldOffset = scrollOffset;
-            if (event.wheel.y > 0) scrollOffset--; // Scroll Up
-            else if (event.wheel.y < 0) scrollOffset++; // Scroll Down
-
-            // Clamp scrollOffset
-            int maxScrollOffset = std::max(0, static_cast<int>(saveSlots.size()) - visibleSlotsCount);
-            scrollOffset = std::max(0, std::min(scrollOffset, maxScrollOffset));
-
-            if(oldOffset != scrollOffset) {
-                std::cout << "Scroll Offset: " << scrollOffset << std::endl;
-                 // Recalculate layout to update scrollbar position based on new offset
-                 int w, h;
-                 if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h); else { w = 800; h = 600;}
-                 calculateLayout(w, h);
-            }
-        }
-    }
-    // --- Mouse Button Down ---
-     else if (event.type == SDL_MOUSEBUTTONDOWN) {
-         if (event.button.button == SDL_BUTTON_LEFT) {
-
-            bool playClickSound = false; // Flag to play generic click sound
-
-             // --- Check Mute Icon Clicks ---
-             if (SDL_PointInRect(&mousePoint, &bgmIconRect)) {
-                 bool wasMuted = (Game::getMusicVolume() == 0);
-                 if (!wasMuted) { storedMusicVolumeBeforeMute = Game::getMusicVolume(); Game::setMusicVolume(0); }
-                 else { Game::setMusicVolume(storedMusicVolumeBeforeMute > 0 ? storedMusicVolumeBeforeMute : MIX_MAX_VOLUME / 4); storedMusicVolumeBeforeMute = Game::getMusicVolume(); }
-                 isMusicMuted = (Game::getMusicVolume() == 0);
-                 if(menuMusic) Mix_VolumeMusic(Game::getMusicVolume());
-                 int w, h; if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h); else { w = 800; h = 600;} calculateLayout(w, h);
-                 playClickSound = true; // Flag to play click sound
-                 // return; // Decide if execution should stop immediately
-             }
-             // Use 'else if' to prevent double plays if elements overlap
-             else if (SDL_PointInRect(&mousePoint, &sfxIconRect)) {
-                 bool wasMuted = (Game::getSfxVolume() == 0);
-                 if (!wasMuted) { storedSfxVolumeBeforeMute = Game::getSfxVolume(); Game::setSfxVolume(0); }
-                 else { Game::setSfxVolume(storedSfxVolumeBeforeMute > 0 ? storedSfxVolumeBeforeMute : MIX_MAX_VOLUME / 4); storedSfxVolumeBeforeMute = Game::getSfxVolume(); }
-                 isSfxMuted = (Game::getSfxVolume() == 0);
-                 Mix_Volume(-1, Game::getSfxVolume());
-                 int w, h; if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h); else { w = 800; h = 600;} calculateLayout(w, h);
-                 playClickSound = true; // Flag to play click sound
-                 // return;
-             }
-             // --- Check Slider Button Drag Start ---
-             else if (SDL_PointInRect(&mousePoint, &bgmSliderButtonRect)) {
-                 isDraggingBgmSlider = true;
-                 sliderDragStartX = mouseX - bgmSliderButtonRect.x;
-                 playClickSound = true; // Play sound on initial slider click
-                 std::cout << "BGM Slider drag started." << std::endl;
-                 // return;
-             }
-              else if (SDL_PointInRect(&mousePoint, &sfxSliderButtonRect)) {
-                 isDraggingSfxSlider = true;
-                 sliderDragStartX = mouseX - sfxSliderButtonRect.x;
-                 playClickSound = true; // Play sound on initial slider click
-                 std::cout << "SFX Slider drag started." << std::endl;
-                 // return;
-             }
-             // --- Check Scrollbar Button Drag Start ---
-              else if (saveSlots.size() > visibleSlotsCount && SDL_PointInRect(&mousePoint, &scrollbarButtonRect)) {
-                   if (!isDraggingScrollbar) {
-                       isDraggingScrollbar = true;
-                       scrollbarDragStartY = mouseY - scrollbarButtonRect.y;
-                       playClickSound = true; // Play sound on initial scrollbar click
-                       std::cout << "Scrollbar drag started." << std::endl;
-                   }
-                   // return;
-              }
-             // --- Play Button Click ---
-              else if (SDL_PointInRect(&mousePoint, &playButtonRect)) {
-                   if (isEditingName) { isEditingName = false; SDL_StopTextInput(); updateNameTexture(); }
-                  std::cout << "Play button clicked!" << std::endl;
-
-                  // Play START sound
-                  if(startSound) Mix_PlayChannel(-1, startSound, 0);
-                  playClickSound = false; // Don't play the generic click sound
-
-                  if (selectedSaveSlotIndex >= 0 && selectedSaveSlotIndex < saveSlots.size()) {
-                      const auto& selectedSlot = saveSlots[selectedSaveSlotIndex];
-                      if (selectedSlot.isNewGameOption) {
-                          // Start New Game logic
-                          std::cout << "Starting new game with name input: '" << this->playerName << "'" << std::endl;
-                          Scene* gameScenePtr = SceneManager::instance->getScene(SceneType::Game);
-                          GameScene* gameScene = dynamic_cast<GameScene*>(gameScenePtr);
-                          if (gameScene) {
-                              gameScene->resetGame();
-                              gameScene->init();
-                              if (Game::instance) {
-                                  Game::instance->setPlayerName(this->playerName);
-                                  // Volume already set globally via static members
-                              } else { std::cerr << "Error: Game::instance is null after GameScene init!" << std::endl; }
-                          } else { std::cerr << "Error: Could not get/cast GameScene!" << std::endl; }
-                          SceneManager::instance->switchToScene(SceneType::Game);
-                      } else {
-                          // Load Existing Game logic
-                           std::string filenameToLoad = selectedSlot.filename;
-                            std::cout << "Play clicked while save selected. Loading game: " << filenameToLoad << std::endl;
-                            Scene* gameScenePtr = SceneManager::instance->getScene(SceneType::Game);
-                            GameScene* gameScene = dynamic_cast<GameScene*>(gameScenePtr);
-                            if (gameScene) {
-                                gameScene->resetGame();
-                                gameScene->init();
-                                if (Game::instance && Game::instance->saveLoadManager) {
-                                    if (Game::instance->saveLoadManager->loadGameState(filenameToLoad)) {
-                                         std::cout << "Load successful. Switching scene..." << std::endl;
-                                         // Static volume persists unless overwritten by loaded save data
-                                         SceneManager::instance->switchToScene(SceneType::Game);
-                                    } else { std::cerr << "Failed to load game state: " << filenameToLoad << std::endl; }
-                                } else { std::cerr << "Critical Error: SaveLoadManager/Game Instance not available!" << std::endl; }
-                            } else { std::cerr << "Error: Could not get/cast GameScene to load game!" << std::endl; }
-                      } // End else (Load Game)
-                  } else { std::cerr << "Error: Invalid selected save slot index: " << selectedSaveSlotIndex << ". Please select an option." << std::endl; }
-                  return; // Handled play button click
-             } // End Play Button Check
-
-             // --- Name Input Box Click ---
-             else if (SDL_PointInRect(&mousePoint, &nameInputBoxRect)) {
-                  if (!isEditingName) {
-                       if (selectedSaveSlotIndex >= 0 && selectedSaveSlotIndex < saveSlots.size() && saveSlots[selectedSaveSlotIndex].isNewGameOption) {
-                           isEditingName = true;
-                           SDL_StartTextInput();
-                           updateNameTexture();
-                           playClickSound = true; // Play sound for activating input
-                       }
-                  }
-                  // Let click outside logic run if necessary
-             }
-
-             // --- Save Slot clicks ---
-             else { // Check slots only if previous elements weren't handled by a return
-                 bool clickedOnSlot = false;
-                 for (int i = 0; i < visibleSlotsCount; ++i) {
-                     int actualIndex = scrollOffset + i;
-                     if (actualIndex >= 0 && actualIndex < saveSlots.size()) {
-                         if (SDL_PointInRect(&mousePoint, &visibleSaveSlotRects[i])) {
-                             if (selectedSaveSlotIndex != actualIndex) {
-                                 selectedSaveSlotIndex = actualIndex;
-                                 if (saveSlots[actualIndex].isNewGameOption) {
-                                     playerName = ""; isEditingName = true; SDL_StartTextInput();
-                                 } else {
-                                     if (isEditingName) { isEditingName = false; SDL_StopTextInput(); }
-                                     playerName = saveSlots[actualIndex].playerName;
-                                 }
-                                 updateNameTexture();
-                                 playClickSound = true; // Play sound for selection change
-                             } else {
-                                 playClickSound = true; // Play click sound even if same slot clicked
-                             }
-                             clickedOnSlot = true;
-                             break;
-                         }
-                     }
-                 } // End loop through visible slots
-
-                 // Click Outside interactive elements
-                 if (!clickedOnSlot && isEditingName &&
-                     !SDL_PointInRect(&mousePoint, &nameInputBoxRect) &&
-                     !SDL_PointInRect(&mousePoint, &playButtonRect) &&
-                     !SDL_PointInRect(&mousePoint, &scrollbarButtonRect) &&
-                     !SDL_PointInRect(&mousePoint, &bgmIconRect) &&
-                     !SDL_PointInRect(&mousePoint, &sfxIconRect) &&
-                     !SDL_PointInRect(&mousePoint, &bgmSliderButtonRect) &&
-                     !SDL_PointInRect(&mousePoint, &sfxSliderButtonRect))
-                 {
-                      isEditingName = false; SDL_StopTextInput(); updateNameTexture();
-                      // No click sound for clicking outside
-                 }
-             } // End Save Slot / Click Outside Check
-
-
-             // --- Play the generic click sound if flagged by any relevant action ---
-             if (playClickSound && clickSound) {
-                 Mix_PlayChannel(-1, clickSound, 0);
-             }
-
-         } // End Left Mouse Button Check
-     } // End Mouse Button Down Event
-
-     // --- Mouse Button Up ---
-     else if (event.type == SDL_MOUSEBUTTONUP) {
-          if (event.button.button == SDL_BUTTON_LEFT) {
-               // Reset all dragging flags on left button release
-               if (isDraggingScrollbar || isDraggingBgmSlider || isDraggingSfxSlider) {
-                    isDraggingScrollbar = false;
-                    isDraggingBgmSlider = false;
-                    isDraggingSfxSlider = false;
-                    std::cout << "Slider/Scrollbar drag ended." << std::endl;
-               }
-          }
-     }
-     // --- Mouse Motion (Handle Slider/Scrollbar Drag) ---
-     else if (event.type == SDL_MOUSEMOTION) {
-          int w, h;
-          if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h); else { w = 800; h = 600;}
-
-          if (isDraggingBgmSlider) {
-                int trackX = bgmSliderTrackRect.x;
-                int trackButtonW = bgmSliderButtonRect.w;
-                int trackW = bgmSliderTrackRect.w - trackButtonW;
-                trackW = std::max(1, trackW);
-                int targetButtonX = mouseX - sliderDragStartX;
-                targetButtonX = std::max(trackX, std::min(targetButtonX, trackX + trackW));
-                float percent = static_cast<float>(targetButtonX - trackX) / trackW;
-                int newVolume = static_cast<int>(std::round(percent * MIX_MAX_VOLUME));
-                if (newVolume != Game::getMusicVolume()) {
-                     Game::setMusicVolume(newVolume);
-                     isMusicMuted = (Game::getMusicVolume() == 0);
-                     if(!isMusicMuted) storedMusicVolumeBeforeMute = Game::getMusicVolume();
-                     calculateLayout(w, h);
-                     if(menuMusic) Mix_VolumeMusic(Game::getMusicVolume());
-                     // No click sound during drag
-                }
-          }
-           else if (isDraggingSfxSlider) {
-                int trackX = sfxSliderTrackRect.x;
-                int trackButtonW = sfxSliderButtonRect.w;
-                int trackW = sfxSliderTrackRect.w - trackButtonW;
-                trackW = std::max(1, trackW);
-                int targetButtonX = mouseX - sliderDragStartX;
-                targetButtonX = std::max(trackX, std::min(targetButtonX, trackX + trackW));
-                float percent = static_cast<float>(targetButtonX - trackX) / trackW;
-                int newVolume = static_cast<int>(std::round(percent * MIX_MAX_VOLUME));
-                if (newVolume != Game::getSfxVolume()) {
-                     Game::setSfxVolume(newVolume);
-                     isSfxMuted = (Game::getSfxVolume() == 0);
-                     if(!isSfxMuted) storedSfxVolumeBeforeMute = Game::getSfxVolume();
-                     calculateLayout(w, h);
-                     // No click sound during drag
-                }
-          }
-           else if (isDraggingScrollbar) { // Handle Scrollbar Drag
-              int scrollTrackHeight = std::max(1, scrollbarTrackRect.h - scrollbarButtonRect.h);
-              int targetButtonTop = mouseY - scrollbarDragStartY;
-              targetButtonTop = std::max(scrollbarTrackRect.y, std::min(targetButtonTop, scrollbarTrackRect.y + scrollTrackHeight));
-              float percentageScrolled = static_cast<float>(targetButtonTop - scrollbarTrackRect.y) / scrollTrackHeight;
-              int maxScrollOffset = std::max(0, static_cast<int>(saveSlots.size()) - visibleSlotsCount);
-              int newOffset = static_cast<int>(std::round(percentageScrolled * maxScrollOffset));
-              newOffset = std::max(0, std::min(newOffset, maxScrollOffset));
-              if (newOffset != scrollOffset) {
-                   scrollOffset = newOffset;
-                   calculateLayout(w, h);
-              }
-          }
-     }
-     // --- Text Input ---
-     else if (event.type == SDL_TEXTINPUT && isEditingName) {
-         const int MAX_NAME_LENGTH = 15;
-         if (playerName.length() < MAX_NAME_LENGTH) {
-              playerName += event.text.text;
-              std::cout << "TextInput: " << playerName << std::endl;
-              updateNameTexture();
-         }
-     }
-     // --- Key Down ---
-     else if (event.type == SDL_KEYDOWN) {
-         if (isEditingName) { // Handle keys only when editing name
-             if (event.key.keysym.sym == SDLK_BACKSPACE && !playerName.empty()) {
-                 playerName.pop_back();
-                 std::cout << "Backspace: " << playerName << std::endl;
-                 updateNameTexture();
-             } else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_KP_ENTER) {
-                  std::cout << "Enter pressed - disabling input." << std::endl;
-                  isEditingName = false;
-                  SDL_StopTextInput();
-                  updateNameTexture();
-             } else if (event.key.keysym.sym == SDLK_ESCAPE) {
-                  std::cout << "Escape pressed during edit - cancelling." << std::endl;
-                  isEditingName = false;
-                  SDL_StopTextInput();
-                  playerName = "";
-                  updateNameTexture();
-             }
-         }
-
-         // Global keydown handling (like ESC to quit if NOT editing name)
-         if (event.key.keysym.sym == SDLK_ESCAPE && !isEditingName) {
-             std::cout << "Exit requested from Menu" << std::endl;
-             SDL_Event quitEvent;
-             quitEvent.type = SDL_QUIT;
-             SDL_PushEvent(&quitEvent);
-         }
-     } // End Key Down Event
-
-} // End handleEvents
-
-// --- update ---
-void MenuScene::update() {}
-
-// --- render (Draw rect for track) ---
-void MenuScene::render() {
-    if (!Game::renderer) { return; }
-    SDL_SetRenderDrawColor(Game::renderer, 0, 0, 0, 255);
-    SDL_RenderClear(Game::renderer);
-
-    // Render Background & Center Column
-    if (backgroundTexture) SDL_RenderCopy(Game::renderer, backgroundTexture, NULL, &backgroundRect);
-    if (titleTexture) SDL_RenderCopy(Game::renderer, titleTexture, NULL, &titleRect);
-    if (playButtonTexture) SDL_RenderCopy(Game::renderer, playButtonTexture, NULL, &playButtonRect);
-    if (nameBoxTexture) SDL_RenderCopy(Game::renderer, nameBoxTexture, NULL, &nameInputBoxRect);
-    if (nameTextTexture) SDL_RenderCopy(Game::renderer, nameTextTexture, NULL, &nameTextRect);
-
-    // In render() function in MenuScene.cpp:
-
-    // --- Render Left Column (Save List) ---
-    int slotsToDraw = std::min(visibleSlotsCount, static_cast<int>(saveSlots.size()) - scrollOffset);
-    for (int i = 0; i < slotsToDraw; ++i) {
-        int actualIndex = scrollOffset + i;
-        if (actualIndex < 0 || actualIndex >= saveSlots.size()) continue;
-
-        const auto& currentSlot = saveSlots[actualIndex]; // Get reference to slot info
-
-        // Draw the box background (with selection tint)
-        if (nameBoxTexture) {
-            SDL_Color tint = (actualIndex == selectedSaveSlotIndex) ? SDL_Color{200, 200, 255, 255} : SDL_Color{255, 255, 255, 255};
-            SDL_SetTextureColorMod(nameBoxTexture, tint.r, tint.g, tint.b);
-            SDL_RenderCopy(Game::renderer, nameBoxTexture, NULL, &visibleSaveSlotRects[i]);
-            SDL_SetTextureColorMod(nameBoxTexture, 255, 255, 255); // Reset tint
-        }
-
-        // --- Render text directly (with dynamic string) ---
-        if (saveSlotFont) {
-            // 1. Determine text string based on selection and slot type
-            std::string textStr;
-            if (currentSlot.isNewGameOption) {
-                textStr = "+ New Game";
-            } else {
-                if (actualIndex == selectedSaveSlotIndex) {
-                    // Selected: Show Name (placeholder) and Level
-                    textStr = currentSlot.playerName + " Lvl " + std::to_string(currentSlot.level);
-                } else {
-                    // Not Selected: Show Timestamp
-                    textStr = currentSlot.timestamp;
-                }
-            }
-
-        // 2. Determine color based on current selection
-        SDL_Color colorToUse = (actualIndex == selectedSaveSlotIndex) ? saveSlotTextColorSelected : saveSlotTextColorDefault;
-
-        // 3. Render text to a temporary texture
-        SDL_Surface* surface = TTF_RenderText_Blended(saveSlotFont, textStr.c_str(), colorToUse);
-        if (surface) {
-            SDL_Texture* textTexture = SDL_CreateTextureFromSurface(Game::renderer, surface);
-            if (textTexture) {
-                // 4. Calculate scaled text dimensions
-                 int w, h;
-                 SDL_GetRendererOutputSize(Game::renderer, &w, &h);
-                 float scaleX = static_cast<float>(w) / static_cast<float>(referenceWidth);
-                 float scaleY = static_cast<float>(h) / static_cast<float>(referenceHeight);
-                 float scaleFactor = std::min(scaleX, scaleY);
-                 const float minimumScaleFactor = 0.8f;
-                 scaleFactor = std::max(scaleFactor, minimumScaleFactor);
-                 float saveSlotTextScale = std::max(scaleFactor * 0.9f, minimumScaleFactor * 0.9f); // Use same scale as layout
-
-                SDL_Rect textDestRect;
-                // Use surface w/h for original size before scaling
-                textDestRect.w = static_cast<int>(surface->w * saveSlotTextScale);
-                textDestRect.h = static_cast<int>(surface->h * saveSlotTextScale);
-                // Center the text rect within the box rect
-                textDestRect.x = visibleSaveSlotRects[i].x + (visibleSaveSlotRects[i].w - textDestRect.w) / 2;
-                textDestRect.y = visibleSaveSlotRects[i].y + (visibleSaveSlotRects[i].h - textDestRect.h) / 2;
-
-                // 5. Render the temporary texture
-                SDL_RenderCopy(Game::renderer, textTexture, NULL, &textDestRect);
-                // 6. Destroy the temporary texture
-                SDL_DestroyTexture(textTexture);
-            } else {
-                 std::cerr << "Failed to create texture for: " << textStr << std::endl;
-            }
-            SDL_FreeSurface(surface);
-        } else {
-             std::cerr << "Failed to render text surface for: " << textStr << std::endl;
-        }
-    }
-    // --- END Render text directly ---
-
-} // End loop through visible slots
-
-
-    // --- Render Scrollbar ---
-    bool needsScrollbar = saveSlots.size() > visibleSlotsCount;
-    if (needsScrollbar) {
-        // Draw Track Background (simple rectangle)
-        SDL_SetRenderDrawBlendMode(Game::renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(Game::renderer, 80, 80, 80, 150); // Dark semi-transparent grey
-        SDL_RenderFillRect(Game::renderer, &scrollbarTrackRect);
-        SDL_SetRenderDrawBlendMode(Game::renderer, SDL_BLENDMODE_NONE);
-
-        // Render Button
-        if (slideButtonTexture) {
-             if (isDraggingScrollbar) SDL_SetTextureColorMod(slideButtonTexture, 200, 200, 200);
-             SDL_RenderCopy(Game::renderer, slideButtonTexture, NULL, &scrollbarButtonRect); // No rotation
-             if (isDraggingScrollbar) SDL_SetTextureColorMod(slideButtonTexture, 255, 255, 255);
-        }
-    }
-
-    // --- Render Cursor in Name Box ---
-    if (isEditingName && selectedSaveSlotIndex == 0) { // Only show cursor if editing and "+ New Game" selected
-        Uint32 ticks = SDL_GetTicks();
-        if (ticks % 1000 < 500) { // Blink every 500ms
-            SDL_SetRenderDrawColor(Game::renderer, inputTextColor.r, inputTextColor.g, inputTextColor.b, 255);
-
-            // Recalculate scale for cursor size consistency
-            int windowWidth, windowHeight;
-            SDL_GetRendererOutputSize(Game::renderer, &windowWidth, &windowHeight);
-            float scaleX = static_cast<float>(windowWidth) / static_cast<float>(referenceWidth);
-            float scaleY = static_cast<float>(windowHeight) / static_cast<float>(referenceHeight);
-            float scaleFactor = std::min(scaleX, scaleY);
-            const float minimumScaleFactor = 0.8f;
-            scaleFactor = std::max(scaleFactor, minimumScaleFactor);
-            float textScale = std::max(scaleFactor * 0.8f, minimumScaleFactor * 0.8f);
-
-            int cursorW = static_cast<int>(std::max(1.0f, 2.0f * textScale));
-            int cursorPadding = static_cast<int>(std::max(1.0f, 2.0f * textScale));
-            int cursorH = nameTextRect.h; // Use height of (potentially scaled) text rect
-
-            int cursorX;
-            if (nameTextRect.w > 0) { // Position after text if text exists
-                cursorX = nameTextRect.x + nameTextRect.w + cursorPadding;
-            } else { // Position at start if text is empty
-                // Use nameInputBoxRect for reference, apply padding
-                cursorX = nameInputBoxRect.x + (nameInputBoxRect.w / 20);
-                cursorH = nameInputBoxRect.h - 2 * cursorPadding; // Adjust height based on box
-                cursorH = std::max(1, cursorH); // Ensure positive height
-            }
-            int cursorY = nameTextRect.y; // Align with text top (or box top if no text?)
-            // Adjust Y pos if text was empty (align V center in box)
-            if (nameTextRect.w <= 0) {
-                cursorY = nameInputBoxRect.y + (nameInputBoxRect.h - cursorH) / 2;
-            }
-
-
-            // Clamp cursor X position
-            cursorX = std::min(cursorX, nameInputBoxRect.x + nameInputBoxRect.w - cursorW - cursorPadding);
-            cursorX = std::max(nameInputBoxRect.x + cursorPadding, cursorX); // Don't go left of box start
-
-
-            SDL_Rect cursorRect = {cursorX, cursorY, cursorW, cursorH};
-            SDL_RenderFillRect(Game::renderer, &cursorRect);
-        }
-    }
-    // --- Render Volume Controls ---
-    SDL_Texture* bgmIconTex = isMusicMuted ? soundOffTexture : soundOnTexture;
-    SDL_Texture* sfxIconTex = isSfxMuted ? soundOffTexture : soundOnTexture;
-
-    // Draw BGM Row
-    if (bgmIconTex) SDL_RenderCopy(Game::renderer, bgmIconTex, NULL, &bgmIconRect);
-    if (sliderTrackTexture) SDL_RenderCopy(Game::renderer, sliderTrackTexture, NULL, &bgmSliderTrackRect);
-    if (sliderButtonTexture) SDL_RenderCopy(Game::renderer, sliderButtonTexture, NULL, &bgmSliderButtonRect);
-
-    // Draw SFX Row
-    if (sfxIconTex) SDL_RenderCopy(Game::renderer, sfxIconTex, NULL, &sfxIconRect);
-    if (sliderTrackTexture) SDL_RenderCopy(Game::renderer, sliderTrackTexture, NULL, &sfxSliderTrackRect);
-    if (sliderButtonTexture) SDL_RenderCopy(Game::renderer, sliderButtonTexture, NULL, &sfxSliderButtonRect);
-
-    // --- ADDED: Render Fullscreen Hint ---
-    if (fullscreenTextTex) {
-        SDL_RenderCopy(Game::renderer, fullscreenTextTex, NULL, &fullscreenTextRect);
-    }
-    SDL_RenderPresent(Game::renderer);
-}
-
-
-// --- clean (Removed slideBarTexture cleanup) ---
-void MenuScene::clean() {
-    if (backgroundTexture) { SDL_DestroyTexture(backgroundTexture); backgroundTexture = nullptr; }
-    if (titleTexture) { SDL_DestroyTexture(titleTexture); titleTexture = nullptr; }
-    if (playButtonTexture) { SDL_DestroyTexture(playButtonTexture); playButtonTexture = nullptr; }
-    if (nameBoxTexture) { SDL_DestroyTexture(nameBoxTexture); nameBoxTexture = nullptr; }
-    if (nameTextTexture) { SDL_DestroyTexture(nameTextTexture); nameTextTexture = nullptr; }
-    // REMOVED: slideBarTexture cleanup
-    if (slideButtonTexture) { SDL_DestroyTexture(slideButtonTexture); slideButtonTexture = nullptr; }
-    
-  
-
-    if (inputFont) { TTF_CloseFont(inputFont); inputFont = nullptr; }
-    if (saveSlotFont) { TTF_CloseFont(saveSlotFont); saveSlotFont = nullptr; }
-    // --- ADDED: Clean up menu music ---
-    Mix_HaltMusic(); // Stop music if playing when scene cleans up
-    if (menuMusic) {
-        Mix_FreeMusic(menuMusic);
-        menuMusic = nullptr;
-        std::cout << "Menu BGM freed." << std::endl;
-    }
-    if (soundOnTexture) { SDL_DestroyTexture(soundOnTexture); soundOnTexture = nullptr; }
-    if (soundOffTexture) { SDL_DestroyTexture(soundOffTexture); soundOffTexture = nullptr; }
-    if (sliderTrackTexture) { SDL_DestroyTexture(sliderTrackTexture); sliderTrackTexture = nullptr; }
-    // --- ADDED: Clean up hint text resources ---
-    if (fullscreenTextTex) { SDL_DestroyTexture(fullscreenTextTex); fullscreenTextTex = nullptr; }
-    // Close uiHintFont ONLY if it's different from saveSlotFont AND was loaded successfully
-    if (uiHintFont && uiHintFont != saveSlotFont) { TTF_CloseFont(uiHintFont); }
-    uiHintFont = nullptr; // Set to null regardless
-    // --- END ADDED ---
-
-    // --- ADDED: Free MenuScene sounds ---
-    if (startSound) { Mix_FreeChunk(startSound); startSound = nullptr; }
-    if (clickSound) { Mix_FreeChunk(clickSound); clickSound = nullptr; }
-    // --- END ADDED ---
-
-    std::cout << "Menu Scene Cleaned." << std::endl;
-}
-
-// --- Helper: Parse Name from Save File ---
-std::string MenuScene::parseNameFromSaveFile(const std::string& filepath) {
-    std::ifstream saveFile(filepath);
-    if (!saveFile.is_open()) {
-        return "Player"; // Default if file cannot be opened
-    }
-    std::string line;
-    std::string key;
-    std::string value;
-    std::string name = "Player"; // Default name
-    while (std::getline(saveFile, line)) {
-        std::size_t separatorPos = line.find(':');
-        if (separatorPos == std::string::npos) continue;
-        key = line.substr(0, separatorPos);
-        value = line.substr(separatorPos + 1);
-        if (key == "PlayerName") { // Check for the key used in SaveLoadManager
-            name = value;
-            // Handle empty name saved? Use default if empty.
-            if (name.empty()) {
-                name = "Player";
-            }
-            break; // Found name, exit loop
-        }
-    }
-    saveFile.close();
-    return name;
 }

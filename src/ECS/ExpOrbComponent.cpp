@@ -1,66 +1,81 @@
+// --- Includes ---
 #include "ExpOrbComponent.h"
-
-// Include FULL definitions needed for the implementation
 #include "Components.h" // Includes TransformComponent.h, ColliderComponent.h etc.
-#include "Player.h"
-#include "../game.h"
-#include "../Collision.h"
-#include <stdexcept>
-#include <iostream>
+#include "Player.h"     // Needed for Player class definition
+#include "../game.h"    // For Game::instance access
+#include "../Collision.h" // For Collision::AABB
+#include <stdexcept>   // For std::runtime_error
+#include <iostream>    // For std::cerr error logging
 
-// --- REMOVED Constructor Definition (it's inline in .h now) ---
+// --- Method Definitions ---
 
-// --- init() Definition ---
+// --- init() ---
 void ExpOrbComponent::init() {
     initialized = false; // Reset flag
     if (!entity) { std::cerr << "Error in ExpOrbComponent::init: Entity is null!" << std::endl; return; }
 
-    if (!entity->hasComponent<TransformComponent>()) { std::cerr << "Error in ExpOrbComponent::init: Entity missing TransformComponent!" << std::endl; return; }
+    // Get required TransformComponent
+    if (!entity->hasComponent<TransformComponent>()) {
+        std::cerr << "Error in ExpOrbComponent::init: Entity missing TransformComponent!" << std::endl;
+        return;
+    }
     transform = &entity->getComponent<TransformComponent>();
-    if (!transform) { std::cerr << "Error in ExpOrbComponent::init: Failed to get TransformComponent!" << std::endl; return; }
-
-    // ColliderComponent is added in game.cpp before this component now
-    if (!entity->hasComponent<ColliderComponent>()) { std::cerr << "Error in ExpOrbComponent::init: Entity missing ColliderComponent!" << std::endl; return; }
-    collider = &entity->getComponent<ColliderComponent>();
-     if (!collider) { std::cerr << "Error in ExpOrbComponent::init: Failed to get ColliderComponent!" << std::endl; return; }
-
-    entity->addGroup(Game::groupExpOrbs); // Add to group
-
-    initialized = true; // Set flag on success
-}
-
-
-// --- update() Definition ---
-void ExpOrbComponent::update() {
-    if (!initialized) return; // <<< CHECK Flag
-    if (collected) return;
-    // Keep internal checks too
-    if (!collider || !Game::instance) return;
-
-    Entity* playerEntityPtr = nullptr;
-    Player* playerManager = Game::instance->getPlayerManager();
-    if (!playerManager) return;
-
-    try {
-        playerEntityPtr = &playerManager->getEntity();
-    } catch (const std::runtime_error& e) {
-        std::cerr << "ExpOrbComponent: Error getting player entity: " << e.what() << std::endl;
+    if (!transform) {
+        std::cerr << "Error in ExpOrbComponent::init: Failed to get TransformComponent!" << std::endl;
         return;
     }
 
-    // Check player components *after* getting the pointer
+    // Get required ColliderComponent
+    if (!entity->hasComponent<ColliderComponent>()) {
+        std::cerr << "Error in ExpOrbComponent::init: Entity missing ColliderComponent!" << std::endl;
+        return;
+    }
+    collider = &entity->getComponent<ColliderComponent>();
+    if (!collider) {
+        std::cerr << "Error in ExpOrbComponent::init: Failed to get ColliderComponent!" << std::endl;
+        return;
+    }
+
+    // Add this entity to the experience orb group for efficient processing
+    entity->addGroup(Game::groupExpOrbs);
+
+    initialized = true; // Set flag on successful initialization
+}
+
+
+// --- update() ---
+void ExpOrbComponent::update() {
+    if (!initialized || collected) return; // Don't update if not initialized or already collected
+
+    // Need collider and Game instance to check for player collision
+    if (!collider || !Game::instance) return;
+
+    // Get player manager and entity
+    Player* playerManager = Game::instance->getPlayerManager();
+    if (!playerManager) return; // Cannot check collision without player manager
+
+    Entity* playerEntityPtr = nullptr;
+    try {
+        playerEntityPtr = &playerManager->getEntity(); // Get player entity via manager
+    } catch (const std::runtime_error& e) {
+        // Handle case where player entity might be null (e.g., during scene transition)
+        std::cerr << "ExpOrbComponent::update Error: " << e.what() << std::endl;
+        return;
+    }
+
+    // Check player validity and required components for collision
     if (playerEntityPtr && playerEntityPtr->isActive() && playerEntityPtr->hasComponent<ColliderComponent>()) {
         auto& playerCollider = playerEntityPtr->getComponent<ColliderComponent>();
 
+        // Check for collision between orb's collider and player's collider
         if (Collision::AABB(collider->collider, playerCollider.collider)) {
-            // Collision detected
+            // Collision detected: Grant experience and destroy orb
             playerManager->addExperience(experienceAmount);
-            collected = true;
-             if (entity) { // Destroy the orb entity
-                 entity->destroy();
-             }
+            collected = true; // Mark as collected
+            if (entity) {
+                entity->destroy(); // Mark the orb entity for removal
+            }
         }
     }
 }
 
-// void ExpOrbComponent::draw() { // Optional draw method definition }
