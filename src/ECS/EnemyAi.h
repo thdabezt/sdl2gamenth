@@ -29,25 +29,29 @@ private:
     SDL_Rect detectionRect;
     int detectionRange;
     float speed;
+
     int contactDamage;
     int expValue;
+    Entity* playerEntity = nullptr;
+    Vector2D* playerPosition = nullptr; // Pointer to the player's Transform position
 
     Uint32 lastDamageTime = 0;
     const Uint32 damageInterval = 1000; // ms
     bool initialized = false;
 
-    Vector2D* playerPosition = nullptr; // Pointer to the player's Transform position
-    Entity* playerEntity = nullptr;
+    
+    
 
 public:
     // --- Constructor ---
     EnemyAIComponent(int range, float moveSpeed, Vector2D* playerTransformPosPtr, int damage = 10, int exp = 1, Entity* player = nullptr)
         : detectionRange(range > 0 ? range : 100),
-          speed(moveSpeed >= 0.0f ? moveSpeed : 1.0f),
-          playerPosition(playerTransformPosPtr),
+          speed(moveSpeed >= 0.0f ? moveSpeed : 1.0f), 
           contactDamage(damage > 0 ? damage : 1),
           expValue(exp >= 0 ? exp : 0),
-          playerEntity(player) {}
+          playerEntity(player),
+          playerPosition(playerTransformPosPtr)
+          {}
 
     // --- Public Methods ---
 

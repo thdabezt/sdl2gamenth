@@ -341,7 +341,7 @@ void MenuScene::handleEvents(SDL_Event& event) {
     }
     // Mouse Wheel Scroll for Save List
     else if (event.type == SDL_MOUSEWHEEL) {
-        bool canScroll = saveSlots.size() > visibleSlotsCount;
+        bool canScroll = static_cast<int>(saveSlots.size()) > visibleSlotsCount;
         SDL_Rect scrollArea = saveListAreaRect; // Base scroll area is the list itself
         if (scrollbarTrackRect.w > 0) { // Expand scroll area to include track if visible
              scrollArea.w += scrollbarTrackRect.w + (scrollbarTrackRect.x - (saveListAreaRect.x + saveListAreaRect.w));
@@ -367,13 +367,13 @@ void MenuScene::handleEvents(SDL_Event& event) {
          bool playClickSoundFlag = false; // Flag to play generic click sound
 
          // Check UI Element Clicks (Order matters for overlapping elements)
-         if (SDL_PointInRect(&mousePoint, &playButtonRect)) {
-             // Play Button Action
-             if (isEditingName) { isEditingName = false; SDL_StopTextInput(); updateNameTexture(); } // Stop editing if active
-             if(startSound) Mix_PlayChannel(-1, startSound, 0); // Play specific start sound
-             playClickSoundFlag = false; // Don't play generic click
+        if (SDL_PointInRect(&mousePoint, &playButtonRect)) {
+            // Play Button Action
+            if (isEditingName) { isEditingName = false; SDL_StopTextInput(); updateNameTexture(); } // Stop editing if active
+            if(startSound) Mix_PlayChannel(-1, startSound, 0); // Play specific start sound
+            playClickSoundFlag = false; // Don't play generic click
 
-             if (selectedSaveSlotIndex >= 0 && selectedSaveSlotIndex < saveSlots.size()) {
+            if (selectedSaveSlotIndex >= 0 && selectedSaveSlotIndex < static_cast<int>(saveSlots.size())) {
                  const auto& selectedSlot = saveSlots[selectedSaveSlotIndex];
                  Scene* gameScenePtr = SceneManager::instance->getScene(SceneType::Game);
                  GameScene* gameScene = dynamic_cast<GameScene*>(gameScenePtr);
@@ -423,7 +423,7 @@ void MenuScene::handleEvents(SDL_Event& event) {
          } else if (SDL_PointInRect(&mousePoint, &sfxSliderButtonRect)) {
              // Start Drag SFX Slider
              isDraggingSfxSlider = true; sliderDragStartX = mouseX - sfxSliderButtonRect.x; playClickSoundFlag = true;
-         } else if (saveSlots.size() > visibleSlotsCount && SDL_PointInRect(&mousePoint, &scrollbarButtonRect)) {
+         } else if (static_cast<int>(saveSlots.size()) > visibleSlotsCount && SDL_PointInRect(&mousePoint, &scrollbarButtonRect)) {
              // Start Drag Scrollbar
               if (!isDraggingScrollbar) { isDraggingScrollbar = true; scrollbarDragStartY = mouseY - scrollbarButtonRect.y; playClickSoundFlag = true; }
          } else if (SDL_PointInRect(&mousePoint, &nameInputBoxRect)) {
@@ -435,12 +435,12 @@ void MenuScene::handleEvents(SDL_Event& event) {
              // Check Save Slot Clicks
              bool clickedOnSlot = false;
              for (int i = 0; i < visibleSlotsCount; ++i) {
-                 int actualIndex = scrollOffset + i;
-                 if (actualIndex >= 0 && actualIndex < saveSlots.size()) {
-                     if (SDL_PointInRect(&mousePoint, &visibleSaveSlotRects[i])) {
-                         if (selectedSaveSlotIndex != actualIndex) {
-                             selectedSaveSlotIndex = actualIndex;
-                             if (saveSlots[actualIndex].isNewGameOption) {
+                int actualIndex = scrollOffset + i;
+                if (actualIndex >= 0 && actualIndex < static_cast<int>(saveSlots.size())) {
+                    if (SDL_PointInRect(&mousePoint, &visibleSaveSlotRects[i])) {
+                        if (selectedSaveSlotIndex != actualIndex) {
+                            selectedSaveSlotIndex = actualIndex;
+                            if (saveSlots[actualIndex].isNewGameOption) {
                                  playerName = "";
                                  if (!isEditingName) { isEditingName = true; SDL_StartTextInput(); }
                              } else {
@@ -487,8 +487,8 @@ void MenuScene::handleEvents(SDL_Event& event) {
                 int newVolume = static_cast<int>(std::round(percent * MIX_MAX_VOLUME));
                 if (newVolume != Game::getMusicVolume()) {
                      Game::setMusicVolume(newVolume); isMusicMuted = (newVolume == 0);
-                     if(!isMusicMuted) storedMusicVolumeBeforeMute = newVolume;
-                     if(menuMusic) Mix_VolumeMusic(newVolume); calculateLayout(w, h);
+                    if(!isMusicMuted) storedMusicVolumeBeforeMute = newVolume;
+                    if(menuMusic) { Mix_VolumeMusic(newVolume); } calculateLayout(w, h);
                 }
           } else if (isDraggingSfxSlider) {
                 int trackX = sfxSliderTrackRect.x; int trackButtonW = sfxSliderButtonRect.w; int trackW = std::max(1, sfxSliderTrackRect.w - trackButtonW);
@@ -496,8 +496,8 @@ void MenuScene::handleEvents(SDL_Event& event) {
                 float percent = (trackW > 0) ? static_cast<float>(targetButtonX - trackX) / trackW : 0.0f;
                 int newVolume = static_cast<int>(std::round(percent * MIX_MAX_VOLUME));
                 if (newVolume != Game::getSfxVolume()) {
-                     Game::setSfxVolume(newVolume); isSfxMuted = (newVolume == 0);
-                     if(!isSfxMuted) storedSfxVolumeBeforeMute = newVolume; calculateLayout(w, h);
+                    Game::setSfxVolume(newVolume); isSfxMuted = (newVolume == 0);
+                    if(!isSfxMuted) { storedSfxVolumeBeforeMute = newVolume; } calculateLayout(w, h);
                 }
           } else if (isDraggingScrollbar) {
               int scrollTrackHeight = std::max(1, scrollbarTrackRect.h - scrollbarButtonRect.h);
@@ -553,7 +553,7 @@ void MenuScene::render() {
     int slotsToDraw = std::min(visibleSlotsCount, static_cast<int>(saveSlots.size()) - scrollOffset);
     for (int i = 0; i < slotsToDraw; ++i) {
         int actualIndex = scrollOffset + i;
-        if (actualIndex < 0 || actualIndex >= saveSlots.size()) continue;
+        if (actualIndex < 0 || actualIndex >= static_cast<int>(saveSlots.size())) continue;
 
         const auto& currentSlot = saveSlots[actualIndex];
         SDL_Rect currentSlotRect = visibleSaveSlotRects[i];
@@ -596,7 +596,7 @@ void MenuScene::render() {
     } // End loop through visible slots
 
     // Render Scrollbar (if needed)
-    bool needsScrollbar = saveSlots.size() > visibleSlotsCount;
+    bool needsScrollbar = static_cast<int>(saveSlots.size()) > visibleSlotsCount;
     if (needsScrollbar) {
         // Draw Track Background
         SDL_SetRenderDrawBlendMode(Game::renderer, SDL_BLENDMODE_BLEND);
@@ -701,7 +701,6 @@ void MenuScene::calculateLayout(int windowWidth, int windowHeight) {
     // --- Text Scaling ---
     // Scale text relative to overall scale factor, maybe clamp minimum font size later if needed
     float textScale = scaleFactor * 0.9f; // Adjust base multiplier as needed
-    float saveSlotTextScale = scaleFactor * 1.0f; // Make save slot text slightly larger relative to scale
 
 
     // --- Center Column Elements (Position relative to windowWidth/Height) ---
@@ -777,7 +776,7 @@ void MenuScene::calculateLayout(int windowWidth, int windowHeight) {
     }
 
     // --- Scrollbar Button & Track Area (Position relative to list) ---
-    if (saveSlots.size() > visibleSlotsCount) {
+    if (static_cast<int>(saveSlots.size()) > visibleSlotsCount) {
         // Scale scrollbar elements based on actual scaleFactor
         int scrollbarWidth = std::max(5, static_cast<int>(originalSlideButtonWidth * scaleFactor * 1.5f)); // Track width based on button
         int scrollbarX = listX + listWidth + paddingX / 2; // Position next to list area

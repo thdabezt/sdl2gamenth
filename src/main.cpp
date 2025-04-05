@@ -9,7 +9,7 @@
 #include "game.h"
 #include "Scene/SceneComponent.h" // Includes SceneManager.h, MenuScene.h, GameScene.h
 
-#define SDL_MAIN_HANDLED // Define before including SDL_main.h if needed, usually handled by SDL.h
+
 
 // --- Globals ---
 static SDL_Window* mainWindow = nullptr; // Global pointer for fullscreen toggle
@@ -54,7 +54,8 @@ void toggleFullscreen() {
 // --- Main Function ---
 
 int main(int argc, char* argv[]) {
-
+    (void)argc; // Suppress unused parameter warning
+    (void)argv; // Suppress unused parameter warning
 
     setupConsole();
 
@@ -80,7 +81,7 @@ int main(int argc, char* argv[]) {
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) { // Initialize SDL_mixer
         std::cerr << "SDL_mixer could not initialize! SDL_mixer Error: " << Mix_GetError() << std::endl;
     } else {
-        int allocatedChannels = Mix_AllocateChannels(16); // Allocate mixer channels
+        Mix_AllocateChannels(16); // Allocate mixer channels
   
     }
 

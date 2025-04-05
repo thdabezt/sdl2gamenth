@@ -124,7 +124,7 @@ public:
 
     // --- Public Methods ---
     // Initialization & Cleanup
-    void init(const char* title, int xpos, int ypos, int width, int height, bool fullscreen);
+    void init();
     void clean();
 
     // Game Loop & State
@@ -229,13 +229,13 @@ private:
     void handleBossProjectileHitPlayer(Entity* projectile, Uint32 currentTime);
     void handleEnemySpawning(Uint32 currentTime);
     void updateCamera(TransformComponent& playerTransform);
-    void checkPlayerDeath(HealthComponent& playerHealth, Uint32 currentTime);
+    void checkPlayerDeath(HealthComponent& playerHealth);
     void spawnBossAt(Vector2D spawnPos); // Helper for boss spawning
 
     // Event Handling Helpers
     void handlePauseMenuEvents();
     void handleBuffSelectionEvents();
-    void handleSliderDrag(int mouseX_Screen, int mouseY_Screen);
+    void handleSliderDrag(int mouseX_Screen);
 
     // Rendering Helpers
     void renderPausedState();

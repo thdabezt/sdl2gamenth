@@ -2,10 +2,10 @@
 CC = g++
 
 # Compiler flags
-CFLAGS = -Wall -Wextra -g
+CFLAGS = -Wall -Wextra -g -DDEBUG
 
 # SDL2 include and library paths
-SDL2_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null || echo "-IC:/msys64/mingw64/include/SDL2 -IC:/Users/Admin/Documents/Code/Game/src/ECS -Dmain=SDL_main")
+SDL2_CFLAGS = -IC:/msys64/mingw64/include/SDL2 -IC:/Users/Admin/Documents/Code/Game/src/ECS
 SDL2_LDFLAGS = -LC:/msys64/mingw64/lib -lmingw32 -mwindows -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer
 
 # Directories

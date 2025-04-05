@@ -51,6 +51,7 @@ private:
     int projectileDamage;
     float knockbackForce;               // Force applied to player on slam hit
 
+
     // Projectile Attack Config
     int baseProjectileCount = 5;        // Base number of projectiles per spread shot
     int baseBurstCount = 2;             // Base number of shots in a burst sequence

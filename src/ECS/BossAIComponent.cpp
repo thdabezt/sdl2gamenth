@@ -38,10 +38,10 @@ Vector2D getPlayerTransformCenter(Entity* pEntity) {
 
 // --- Constructor ---
 BossAIComponent::BossAIComponent(float moveSpeed, float approachDist, float contactDist, int slamDmg, int projDmg, float knockback, Entity* playerEnt)
-    : playerEntity(playerEnt), // Store player pointer
+    : playerEntity(playerEnt),
+      speed(moveSpeed),
       approachDistanceThreshold(approachDist),
       contactDistanceThreshold(contactDist),
-      speed(moveSpeed),
       slamDamage(slamDmg),
       projectileDamage(projDmg),
       knockbackForce(knockback)
@@ -351,6 +351,7 @@ void BossAIComponent::shootSingleBurstProjectile() {
     // Calculate spread based on scaled projectile count
     int numProjectiles = currentProjectileCount;
     const double PI = acos(-1.0);
+    (void)PI; // Avoid unused variable warning
     float totalSpreadAngleRad = 0.8f; // Approx 45 degrees in radians
     float angleStep = (numProjectiles > 1) ? totalSpreadAngleRad / (numProjectiles - 1) : 0.0f;
     float startAngle = (numProjectiles > 1) ? -totalSpreadAngleRad / 2.0f : 0.0f;

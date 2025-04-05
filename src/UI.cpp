@@ -232,10 +232,15 @@ void UIManager::renderWeaponStats(Player* player, int& yPos) {
     int xPos = UI_PADDING;
     SDL_Color white = {255, 255, 255, 255};
     SDL_Color gold = {255, 215, 0, 255};
+    SDL_Color black = {0, 0, 0, 255}; // Added black color for stroke
 
-    std::string weaponName = weapon.getTag(); if (!weaponName.empty()) weaponName[0] = std::toupper(weaponName[0]);
-    std::stringstream ss_header; ss_header << weaponName << " - Lv." << weapon.getLevel();
-    drawText(ss_header.str(), xPos, yPos, gold, uiHeaderFont);
+    std::string weaponName = "Main Weapon"; // Use "Main Weapon" instead of tag
+    std::stringstream ss_header;
+    ss_header << weaponName << " - Lv." << weapon.getLevel();
+    // Use drawTextWithOutline instead of drawText
+    drawTextWithOutline(ss_header.str(), xPos, yPos, gold, black, 1, uiHeaderFont); // Added black stroke
+   
+
     yPos += STAT_LINE_HEIGHT + 5;
 
     std::stringstream ss;
@@ -258,7 +263,10 @@ void UIManager::renderSpellStats(Player* player, int& yPos) {
 
     int xPos = UI_PADDING;
     SDL_Color white = {255, 255, 255, 255};
-    SDL_Color spellColor = {100, 150, 255, 255};
+    // These colors are defined in UI.h
+    SDL_Color fireColor = fireSpellBuffColor; // Red
+    SDL_Color starColor = starSpellBuffColor; // Yellow
+    SDL_Color defaultSpellColor = {100, 150, 255, 255}; // Default blueish
     SDL_Color getSpellColor = {180, 180, 180, 255};
 
     int spellCount = 0;
@@ -267,7 +275,20 @@ void UIManager::renderSpellStats(Player* player, int& yPos) {
             spellCount++;
             if(spellCount > 1) yPos += SECTION_PADDING / 2;
 
-            std::string spellName = spellComp->getTag(); if (!spellName.empty()) spellName[0] = std::toupper(spellName[0]);
+            std::string spellName = "";
+            SDL_Color headerColor = defaultSpellColor;
+            std::string currentTag = spellComp->getTag();
+
+            if (currentTag == "spell") { // Tag for Fire Vortex
+                spellName = "Fire Vortex";
+                headerColor = fireColor;
+            } else if (currentTag == "star") { // Tag for Starfall
+                spellName = "Starfall";
+                headerColor = starColor;
+            } else { // Fallback for other potential spells
+                spellName = spellComp->getTag(); if (!spellName.empty()) spellName[0] = std::toupper(spellName[0]);
+            }
+    
 
             if (spellComp->getLevel() == 0) {
                 std::stringstream ss_get; ss_get << "Get " << spellName;
@@ -275,7 +296,8 @@ void UIManager::renderSpellStats(Player* player, int& yPos) {
                 yPos += STAT_LINE_HEIGHT + 5;
             } else {
                 std::stringstream ss_header; ss_header << spellName << " - Lv." << spellComp->getLevel();
-                drawText(ss_header.str(), xPos, yPos, spellColor, uiHeaderFont);
+                // Use the determined headerColor
+                drawText(ss_header.str(), xPos, yPos, headerColor, uiHeaderFont);
                 yPos += STAT_LINE_HEIGHT + 5;
 
                 std::stringstream ss;
@@ -284,12 +306,10 @@ void UIManager::renderSpellStats(Player* player, int& yPos) {
                 ss << "Cooldown: " << std::fixed << std::setprecision(1) << cooldownSec << "s"; drawText(ss.str(), xPos, yPos, white, uiFont); yPos += STAT_LINE_HEIGHT;
                 ss.str(""); ss << "Pierce: " << spellComp->getPierce(); drawText(ss.str(), xPos, yPos, white, uiFont); yPos += STAT_LINE_HEIGHT;
 
-                 if (spellComp->getTag() == "star") {
+                 if (currentTag == "star") { // Starfall specific stat
                      ss.str(""); ss << "Projectiles: " << spellComp->getProjectileCount(); drawText(ss.str(), xPos, yPos, white, uiFont); yPos += STAT_LINE_HEIGHT;
-                 } else if (spellComp->getTag() == "spell") { // Fire
-                     ss.str(""); float durationSec = (spellComp->getDuration() > 0) ? spellComp->getDuration() / 1000.0f : 0.0f;
-                     ss << "Duration: " << std::fixed << std::setprecision(1) << durationSec << "s"; drawText(ss.str(), xPos, yPos, white, uiFont); yPos += STAT_LINE_HEIGHT;
                  }
+
             }
              yPos += SECTION_PADDING;
         }
@@ -430,7 +450,7 @@ void UIManager::renderBuffSelectionUI(const std::vector<BuffInfo>& buffs, int wi
     drawTextWithOutline("Choose an Upgrade!", (windowWidth - approxTitleWidth) / 2, titleOffsetY, titleColor, {0, 0, 0, 255}, 2, largeFont);
 
     // Render Buttons
-    SDL_Color textColor = {255, 255, 255, 255}; SDL_Color outlineColor = {0, 0, 0, 255};
+    SDL_Color outlineColor = {0, 0, 0, 255};
     for (int i = 0; i < numButtons; ++i) {
         int currentX = startX + i * (boxW + gap);
         SDL_Rect boxRect = {currentX, boxOffsetY, boxW, boxH};

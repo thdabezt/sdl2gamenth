@@ -56,8 +56,8 @@ void Map::LoadMap(std::string path, int sizeX, int sizeY, int griWidth, std::vec
     }
 
     // Add Tiles and populate outSpawnPoints based on mapData
-    for (int y = 0; y < sizeY && y < mapData.size(); ++y) {
-        for (int x = 0; x < sizeX && x < mapData[y].size(); ++x) {
+    for (int y = 0; y < sizeY && y < static_cast<int>(mapData.size()); ++y) {
+        for (int x = 0; x < sizeX && x < static_cast<int>(mapData[y].size()); ++x) {
             int tileCode = mapData[y][x];
             if (tileCode < 0) continue;
 
@@ -80,23 +80,23 @@ void Map::LoadMap(std::string path, int sizeX, int sizeY, int griWidth, std::vec
     mapFile.seekg(0);
     int currentY = 0;
     while (std::getline(mapFile, line)) {
-         if (line.empty() || line[0] == '#') continue;
-         if (currentY >= sizeY) break;
+        if (line.empty() || line[0] == '#') continue;
+        if (currentY >= sizeY) break;
         std::istringstream ss(line);
         std::string value;
         int currentX = 0;
-         while (std::getline(ss, value, ',')) {
-              if (currentX >= sizeX) break;
-             if (!mapData.empty() && currentY < mapData.size() && currentX < mapData[currentY].size()) {
-                  if (mapData[currentY][currentX] == 6 || mapData[currentY][currentX] == 2 || mapData[currentY][currentX] == 4 || mapData[currentY][currentX] == 1 ||mapData[currentY][currentX] == 8 || mapData[currentY][currentX] == 3 || mapData[currentY][currentX] == 5) { // Check if this tile code was '2'
-                      auto& tcol(manager_ref.addEntity());
-                      tcol.addComponent<ColliderComponent>("terrain", currentX * scaledSize, currentY * scaledSize, scaledSize);
-                      tcol.addGroup(Game::groupColliders);
-                  }
-             }
-             currentX++;
-         }
-         currentY++;
+        while (std::getline(ss, value, ',')) {
+            if (currentX >= sizeX) break;
+            if (!mapData.empty() && currentY < static_cast<int>(mapData.size()) && currentX < static_cast<int>(mapData[currentY].size())) {
+                if (mapData[currentY][currentX] == 6 || mapData[currentY][currentX] == 2 || mapData[currentY][currentX] == 4 || mapData[currentY][currentX] == 1 ||mapData[currentY][currentX] == 8 || mapData[currentY][currentX] == 3 || mapData[currentY][currentX] == 5) { // Check if this tile code was '2'
+                    auto& tcol(manager_ref.addEntity());
+                    tcol.addComponent<ColliderComponent>("terrain", currentX * scaledSize, currentY * scaledSize, scaledSize);
+                    tcol.addGroup(Game::groupColliders);
+                }
+            }
+            currentX++;
+        }
+        currentY++;
     }
 
     mapFile.close();

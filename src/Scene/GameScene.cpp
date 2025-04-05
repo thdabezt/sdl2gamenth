@@ -29,7 +29,7 @@ void GameScene::init() {
     game = new Game();
     if (game) {
         // Initialize the game using constants
-        game->init(WINDOW_TITLE, WINDOW_POS_X, WINDOW_POS_Y, WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_FULLSCREEN);
+        game->init();
     } else {
         std::cerr << "Error: Failed to allocate memory for Game instance in GameScene::init!" << std::endl;
         // Handle allocation failure, perhaps by setting an error state or exiting
@@ -40,6 +40,9 @@ void GameScene::handleEvents(SDL_Event& event) {
     // Pass the event down to the Game instance's handlers
     if (game) {
         game->handleEvents();
+    }
+    if(event.type == SDL_WINDOWEVENT) {
+        //Just for it to not show in the console
     }
 }
 
@@ -55,6 +58,7 @@ void GameScene::render() {
     if (game && Game::isRunning) { // Use static member
         game->render();
     }
+    
 }
 
 void GameScene::clean() {
