@@ -50,6 +50,11 @@ Game::~Game(){
     instance = nullptr;
 }
 
+<<<<<<< HEAD
+=======
+// --- Initialization & Cleanup ---
+
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 void Game::init(){
     if (!Game::renderer) {
         std::cerr << "Error: Game::init called but Game::renderer is null!" << std::endl;
@@ -145,6 +150,7 @@ void Game::init(){
     playerEntity->getComponent<SoundComponent>().addSoundEffect("star_cast", "star_spell_sound");
     playerEntity->getComponent<SoundComponent>().setBackgroundMusic("level_music", true, -1);
     playerEntity->getComponent<SoundComponent>().addSoundEffect("gameover_sfx", "gameover_sfx");
+<<<<<<< HEAD
     playerEntity->addComponent<HealthComponent>(1, 1); 
     playerEntity->addComponent<WeaponComponent>( "placeholder", 0, 99999, 0.0f, 0.0f, 1, 1, "projectile", 1, 1, 50); 
     playerEntity->addComponent<SpellComponent>(
@@ -170,6 +176,33 @@ void Game::init(){
         SpellTrajectory::RANDOM_DIRECTION, 
         0.0f,                
         1                    
+=======
+    playerEntity->addComponent<HealthComponent>(1, 1); // Placeholder
+    playerEntity->addComponent<WeaponComponent>( "placeholder", 0, 99999, 0.0f, 0.0f, 1, 1, "projectile", 1, 1, 50); // Placeholder
+    playerEntity->addComponent<SpellComponent>(
+        "placeholder_spell", // spellTag (string)
+        5,                   // dmg (int)
+        100,                 // cool (int)
+        1.5f,                // speed (float)
+        1,                   // count (int)
+        16,                  // size (int)
+        "fire",              // texId (string)
+        SpellTrajectory::SPIRAL, // mode
+        0.5f,                // growthRate (float)
+        10                   // pierce (int)
+    );
+    playerEntity->addComponent<SpellComponent>(
+        "placeholder_star",  // spellTag (string)
+        0,                   // dmg (int)
+        99999,               // cool (int)
+        0.0f,                // speed (float)
+        1,                   // count (int)
+        1,                   // size (int)
+        "starproj",          // texId (string)
+        SpellTrajectory::RANDOM_DIRECTION, // mode
+        0.0f,                // growthRate
+        1                    // pierce
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
     );
     playerEntity->addGroup(groupPlayers);
 
@@ -228,6 +261,10 @@ void Game::init(){
          } else { std::cerr << "Failed to render game over text surface!" << std::endl; }
     }
 
+<<<<<<< HEAD
+=======
+    // At the VERY END of Game::init()
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
     std::cout << "[DEBUG Init] Checking components immediately after init AND load..." << std::endl;
     if (playerEntity) {
         int foundSpells = 0;
@@ -249,7 +286,11 @@ void Game::init(){
         std::cerr << "[DEBUG Init] Error: playerEntity is null at end of init!" << std::endl;
     }
     std::cout << "--------------------------------------------------" << std::endl;
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
     updateSpawnPoolAndWeights();
     isRunning = true;
 }
@@ -963,22 +1004,37 @@ void Game::spawnBossAt(Vector2D spawnPos) {
 }
 
 void Game::generateBuffOptions() {
+<<<<<<< HEAD
     currentBuffOptions.clear(); 
+=======
+    currentBuffOptions.clear(); // Start with an empty list of final options
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
     if (!playerEntity || !playerManager) { std::cerr << "Cannot generate buffs: player invalid." << std::endl; return; }
     int currentLevel = playerManager->getLevel();
 
+    // --- Identify Spell Components and Levels ---
     WeaponComponent* weaponComp = playerEntity->hasComponent<WeaponComponent>() ? &playerEntity->getComponent<WeaponComponent>() : nullptr;
     SpellComponent* fireSpellComp = nullptr;
     SpellComponent* starSpellComp = nullptr;
+<<<<<<< HEAD
 
     for (const auto& compPtr : playerEntity->getAllComponents()) {
          if (SpellComponent* sc = dynamic_cast<SpellComponent*>(compPtr.get())) {
 
+=======
+    // *** IMPORTANT: This loop assumes ONLY ONE component of each type exists due to the ECS limitation identified ***
+    // If you fix the ECS to allow multiple components of the same type, this logic needs to change
+    // to handle multiple SpellComponents (e.g., using getComponents<SpellComponent>() and iterating)
+    for (const auto& compPtr : playerEntity->getAllComponents()) {
+         if (SpellComponent* sc = dynamic_cast<SpellComponent*>(compPtr.get())) {
+             // This relies on the TAG being correct ("spell" or "star")
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
              if (sc->getTag() == "spell") {
                  fireSpellComp = sc;
              } else if (sc->getTag() == "star") {
                  starSpellComp = sc;
              }
+<<<<<<< HEAD
 
          }
     }
@@ -1010,6 +1066,46 @@ void Game::generateBuffOptions() {
 
     if (weaponComp) {
         randomBuffPool.push_back({"Main Weapon Dmg+", "+10% Wpn Damage", BuffType::WEAPON_DAMAGE_FLAT, 10.0f}); 
+=======
+             // If there were somehow more than 2 SpellComponents, this logic might misassign pointers
+         }
+    }
+    // Debug log added previously confirmed only one SpellComponent was being found anyway due to ECS addComponent issue.
+    // The following logic will likely result in starSpellComp being null.
+    // std::cout << "Fire Spell: " << (fireSpellComp ? fireSpellComp->getTag() : "None") << ", Star Spell: " << (starSpellComp ? starSpellComp->getTag() : "None") << std::endl;
+    // std::cout << "Fire Spell Level: " << (fireSpellComp ? fireSpellComp->getLevel() : -1) << ", Star Spell Level: " << (starSpellComp ? starSpellComp->getLevel() : -1) << std::endl;
+    int currentWeaponLevel = weaponComp ? weaponComp->getLevel() : -1;
+    int currentFireLevel = fireSpellComp ? fireSpellComp->getLevel() : -1;
+    int currentStarLevel = starSpellComp ? starSpellComp->getLevel() : -1; // Will be -1 if starSpellComp is null
+    bool isFireLv0 = (currentFireLevel == 0);
+    bool isStarLv0 = (currentStarLevel == 0); // Will be false if currentStarLevel is -1
+
+    // --- Define Grant Buffs (if needed) ---
+    std::vector<BuffInfo> grantBuffs;
+    // This logic needs the component pointer AND level 0
+    if (fireSpellComp && isFireLv0) {
+        grantBuffs.push_back({"Fire Vortex", "Grants Fire Vortex", BuffType::FIRE_SPELL_PROJ_PLUS_1, 5.0f}); // Granting via Proj + 1? Might need review
+    }
+    if (starSpellComp && isStarLv0) { // Will likely NOT add grant buff because starSpellComp is null or level is -1
+        grantBuffs.push_back({"Starfall", "Grants Starfall", BuffType::STAR_SPELL_PROJ_PLUS_1, 5.0f}); // Granting via Proj + 1? Might need review
+    }
+
+    // --- Create Pool of OTHER Available Buffs for Random Selection ---
+    std::vector<BuffInfo> randomBuffPool;
+
+    // Add Player/Utility Buffs
+    randomBuffPool.push_back({"Heal", "Restore 100 HP", BuffType::PLAYER_HEAL_FLAT, 100.0f});
+    randomBuffPool.push_back({"Heal", "Restore 30% Max HP", BuffType::PLAYER_HEAL_PERC_MAX, 30.0f});
+    randomBuffPool.push_back({"Heal", "Restore 60% Lost HP", BuffType::PLAYER_HEAL_PERC_LOST, 60.0f});
+    randomBuffPool.push_back({"Max HP+", "+50 Max Health", BuffType::PLAYER_MAX_HEALTH_FLAT, 50.0f});
+    randomBuffPool.push_back({"Max HP+", "+25% Max Health", BuffType::PLAYER_MAX_HEALTH_PERC_MAX, 25.0f});
+    randomBuffPool.push_back({"Max HP+", "+50% Current HP to Max", BuffType::PLAYER_MAX_HEALTH_PERC_CUR, 50.0f});
+    randomBuffPool.push_back({"Lifesteal+", "+1% Lifesteal", BuffType::PLAYER_LIFESTEAL, 1.0f});
+
+    // Add Weapon Buffs (If applicable)
+    if (weaponComp) {
+        randomBuffPool.push_back({"Main Weapon Dmg+", "+10% Wpn Damage", BuffType::WEAPON_DAMAGE_FLAT, 10.0f}); // Note: Type says FLAT but desc says %
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
         int currentDmg = weaponComp->getDamage();
         std::stringstream randDesc;
         if (currentDmg > 0) {
@@ -1019,26 +1115,45 @@ void Game::generateBuffOptions() {
         randomBuffPool.push_back({"Main Weapon Dmg+", randDesc.str(), BuffType::WEAPON_DAMAGE_RAND_PERC, 0.0f});
         randomBuffPool.push_back({"Main Weapon FireRate+", "-10% Fire Delay", BuffType::WEAPON_FIRE_RATE, 10.0f});
         randomBuffPool.push_back({"Main Weapon Pierce+", "+1 Wpn Pierce", BuffType::WEAPON_PIERCE, 1.0f});
+<<<<<<< HEAD
         if (currentWeaponLevel >= 0 && currentWeaponLevel % 5 == 4) { 
+=======
+        if (currentWeaponLevel >= 0 && currentWeaponLevel % 5 == 4) { // Offer spread every 5 levels (at levels 4, 9, 14...)
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
              randomBuffPool.push_back({"Main Weapon Spread+", "+1 Spread (DMG -30%)", BuffType::WEAPON_PROJ_PLUS_1_DMG_MINUS_30, 0.0f});
         }
         randomBuffPool.push_back({"Main Weapon Burst+", "+1 Main Weapon Burst", BuffType::WEAPON_BURST_COUNT, 1.0f});
     }
 
+<<<<<<< HEAD
     if (fireSpellComp && !isFireLv0) { 
         int fireDmgIncrease = std::max(1, 1 * currentLevel); std::stringstream fireDesc; fireDesc << "+" << fireDmgIncrease << " Fire Damage";
         randomBuffPool.push_back({"Fire Dmg+", fireDesc.str(), BuffType::FIRE_SPELL_DAMAGE, 0.0f}); 
+=======
+    // Add Fire Spell UPGRADES (only if already obtained AND level > 0)
+    if (fireSpellComp && !isFireLv0) { // Needs pointer AND level > 0
+        int fireDmgIncrease = std::max(1, 1 * currentLevel); std::stringstream fireDesc; fireDesc << "+" << fireDmgIncrease << " Fire Damage";
+        randomBuffPool.push_back({"Fire Dmg+", fireDesc.str(), BuffType::FIRE_SPELL_DAMAGE, 0.0f}); // Amount 0.0f, damage calculated in apply
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
         randomBuffPool.push_back({"Fire Vortex CDR", "-10% Fire Vortex Cooldown", BuffType::FIRE_SPELL_COOLDOWN, 10.0f});
         randomBuffPool.push_back({"Fire Vortex Burst+", "+1 Fire Burst", BuffType::FIRE_SPELL_PROJ_PLUS_1, 1.0f});
     }
 
+<<<<<<< HEAD
     if (starSpellComp && !isStarLv0) { 
         int starDmgIncrease = std::max(1, 3 * currentLevel); std::stringstream starDesc; starDesc << "+" << starDmgIncrease << " Star Damage";
         randomBuffPool.push_back({"Starfall Dmg+", starDesc.str(), BuffType::STAR_SPELL_DAMAGE, 0.0f}); 
+=======
+    // Add Star Spell UPGRADES (only if already obtained AND level > 0)
+    if (starSpellComp && !isStarLv0) { // Will likely NOT add upgrades because starSpellComp is null or level is -1
+        int starDmgIncrease = std::max(1, 3 * currentLevel); std::stringstream starDesc; starDesc << "+" << starDmgIncrease << " Star Damage";
+        randomBuffPool.push_back({"Starfall Dmg+", starDesc.str(), BuffType::STAR_SPELL_DAMAGE, 0.0f}); // Amount 0.0f, damage calculated in apply
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
         randomBuffPool.push_back({"Starfall Cooldown", "-10% Star Cooldown", BuffType::STAR_SPELL_COOLDOWN, 10.0f});
         randomBuffPool.push_back({"Starfall Shot", "+1 Star", BuffType::STAR_SPELL_PROJ_PLUS_1, 1.0f});
     }
 
+<<<<<<< HEAD
     const int totalBuffsToOffer = 4;
     currentBuffOptions = grantBuffs; 
 
@@ -1048,6 +1163,19 @@ void Game::generateBuffOptions() {
     int numPossibleRandom = randomBuffPool.size();
     int randomSlotsToFill = std::min(randomSlotsNeeded, numPossibleRandom); 
 
+=======
+    // --- Determine Buffs to Offer ---
+    const int totalBuffsToOffer = 4;
+    currentBuffOptions = grantBuffs; // Start with the guaranteed grant buffs (likely only Fire Vortex Grant if level 0)
+
+    int randomSlotsNeeded = totalBuffsToOffer - currentBuffOptions.size();
+    randomSlotsNeeded = std::max(0, randomSlotsNeeded); // Ensure not negative
+
+    int numPossibleRandom = randomBuffPool.size();
+    int randomSlotsToFill = std::min(randomSlotsNeeded, numPossibleRandom); // Can't fill more slots than available random buffs
+
+    // --- Select Random Buffs to Fill Remaining Slots ---
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
     if (randomSlotsToFill > 0 && numPossibleRandom > 0) {
         std::vector<int> chosenIndices;
 
@@ -1058,6 +1186,7 @@ void Game::generateBuffOptions() {
 
             if (!alreadyChosen) {
                 chosenIndices.push_back(randIndex);
+<<<<<<< HEAD
                 currentBuffOptions.push_back(randomBuffPool[randIndex]); 
             }
 
@@ -1067,11 +1196,27 @@ void Game::generateBuffOptions() {
             if (++safetyCounter > numPossibleRandom * 10) { 
                 std::cerr << "Warning: Buff selection loop safety break after " << safetyCounter << " attempts." << std::endl;
                 safetyCounter = 0; 
+=======
+                currentBuffOptions.push_back(randomBuffPool[randIndex]); // Add selected random buff
+            }
+
+            // Safety checks to prevent potential infinite loops if random selection logic has issues
+            if (chosenIndices.size() >= static_cast<size_t>(numPossibleRandom)) break; // Stop if all unique random buffs picked
+            // Safety break after too many attempts (e.g., if rand() keeps hitting chosen indices)
+            static int safetyCounter = 0; // Use a static counter or member variable if needed across calls
+            if (++safetyCounter > numPossibleRandom * 10) { // Allow generous attempts
+                std::cerr << "Warning: Buff selection loop safety break after " << safetyCounter << " attempts." << std::endl;
+                safetyCounter = 0; // Reset for next time
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
                 break;
             }
         }
     }
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 }
 
 void Game::applySelectedBuff(int index) {

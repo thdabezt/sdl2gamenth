@@ -9,9 +9,17 @@
 #include <iomanip>            
 #include <ctime>              
 #include <vector>
+<<<<<<< HEAD
 #include <algorithm>          
 #include <SDL_mixer.h>        
 #include <iostream>           
+=======
+#include <algorithm>          // For std::max
+#include <SDL_mixer.h>        // For loading volume settings
+#include <iostream>           // For debug logging
+
+// --- Constructor ---
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 
 SaveLoadManager::SaveLoadManager(Game* game) : gameInstance(game) {
     if (!gameInstance) {
@@ -32,6 +40,10 @@ std::string SaveLoadManager::getCurrentTimestamp() {
 }
 
 void SaveLoadManager::saveGameState(const std::string& filename) {
+<<<<<<< HEAD
+=======
+    // std::cout << "[DEBUG Save] Attempting to save game state to: " << (filename.empty() ? "<timestamp>" : filename) << std::endl; // Optional Debug Log
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 
     if (!gameInstance || !gameInstance->playerManager || !gameInstance->playerEntity) {
          std::cerr << "Error saving: Game instance or player not initialized!" << std::endl;
@@ -57,6 +69,8 @@ void SaveLoadManager::saveGameState(const std::string& filename) {
     } else if (filename.find('/') == std::string::npos && filename.find('\\') == std::string::npos) {
         saveFilename = saveDir + "/" + filename; 
     }
+
+    // std::cout << "[DEBUG Save] Final save path: " << saveFilename << std::endl; // Optional Debug Log
 
     std::ofstream saveFile(saveFilename);
     if (!saveFile.is_open()) {
@@ -85,6 +99,10 @@ void SaveLoadManager::saveGameState(const std::string& filename) {
         saveFile << "PlayerPosY:" << transform.position.y << "\n";
     } else { std::cerr << "Warning: Player missing TransformComponent during save!" << std::endl; }
 
+<<<<<<< HEAD
+=======
+    // *** Save PlayerLifesteal (Corrected) ***
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
     if (playerManager) {
          saveFile << "PlayerLifesteal:" << playerManager->getLifestealPercentage() << "\n";
     } else { std::cerr << "Warning: PlayerManager is null during save, cannot save Lifesteal!" << std::endl; }
@@ -106,6 +124,7 @@ void SaveLoadManager::saveGameState(const std::string& filename) {
     } else { std::cerr << "Warning: Player missing WeaponComponent during save!" << std::endl; }
 
     int spellIndex = 0;
+<<<<<<< HEAD
 
     if (playerEntity) { 
 
@@ -116,6 +135,22 @@ void SaveLoadManager::saveGameState(const std::string& filename) {
 
                      saveFile << "SpellIndex:" << spellIndex << "\n";
                      saveFile << "SpellTag:" << spellComp->tag << "\n"; 
+=======
+    // std::cout << "[DEBUG Save] Starting to find Spell Components to save..." << std::endl;
+    if (playerEntity) { // Check if playerEntity exists
+        // std::cout << "[DEBUG Save] Total components on Player: " << playerEntity->getAllComponents().size() << std::endl;
+        for (const auto& compPtr : playerEntity->getAllComponents()) {
+            // std::cout << "[DEBUG Save]  -> Checking a component..." << std::endl; // Log each component check
+            if (compPtr) { // Check component pointer is not null
+                 if (SpellComponent* spellComp = dynamic_cast<SpellComponent*>(compPtr.get())) {
+                    //  std::cout << "[DEBUG Save]  ==> FOUND SpellComponent! Index: " << spellIndex
+                    //            << ", Tag: '" << spellComp->tag << "'" // Print the found tag
+                    //            << ", Level: " << spellComp->getLevel() << std::endl;
+
+                     // --- Save Data Section ---
+                     saveFile << "SpellIndex:" << spellIndex << "\n";
+                     saveFile << "SpellTag:" << spellComp->tag << "\n"; // Make sure tag is correct before saving!
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
                      saveFile << "SpellLevel:" << spellComp->getLevel() << "\n";
                      saveFile << "SpellDamage:" << spellComp->damage << "\n";
                      saveFile << "SpellCooldown:" << spellComp->cooldown << "\n";
@@ -123,6 +158,7 @@ void SaveLoadManager::saveGameState(const std::string& filename) {
                      saveFile << "SpellProjCount:" << spellComp->projectilesPerCast << "\n";
                      saveFile << "SpellProjSize:" << spellComp->projectileSize << "\n";
                      saveFile << "SpellProjTexture:" << spellComp->projectileTexture << "\n";
+<<<<<<< HEAD
 
                      saveFile << "SpellTrajectory:" << static_cast<int>(spellComp->trajectoryMode) << "\n";
                      saveFile << "SpellSpiralGrowth:" << spellComp->spiralGrowthRate << "\n";
@@ -141,12 +177,40 @@ void SaveLoadManager::saveGameState(const std::string& filename) {
     }
 
     saveFile << "TotalSpells:" << spellIndex << "\n"; 
+=======
+                     // *** SpellDuration saving removed for consistency ***
+                     // saveFile << "SpellDuration:" << spellComp->duration << "\n";
+                     saveFile << "SpellTrajectory:" << static_cast<int>(spellComp->trajectoryMode) << "\n";
+                     saveFile << "SpellSpiralGrowth:" << spellComp->spiralGrowthRate << "\n";
+                     saveFile << "SpellPierce:" << spellComp->projectilePierce << "\n";
+                     // --- End Save Data Section ---
+
+                     spellIndex++; // Increment index only after successfully finding and saving a spell
+                 } else {
+                     // Optional: Log components that are not SpellComponents
+                     // std::cout << "[DEBUG Save]  -> This component is not a SpellComponent." << std::endl;
+                 }
+            } else {
+                 // std::cout << "[DEBUG Save]  -> Encountered a null component in the list!" << std::endl;
+            }
+        }
+    } else {
+         // std::cerr << "[DEBUG Save] Error: playerEntity is null when preparing to save spells!" << std::endl;
+    }
+    // std::cout << "[DEBUG Save] Finished searching. Total Spells found: " << spellIndex << std::endl;
+    saveFile << "TotalSpells:" << spellIndex << "\n"; // Save the actual count found
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 
     saveFile.close();
-
+    // std::cout << "[DEBUG] Game state saved successfully to: " << saveFilename << std::endl; // Optional Debug Log
 }
 
+
 bool SaveLoadManager::loadGameState(const std::string& filename) {
+<<<<<<< HEAD
+=======
+    // std::cout << "[DEBUG Load] Attempting to load game state from: " << filename << std::endl; // Optional Debug Log
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 
     if (!gameInstance) {
          std::cerr << "Error loading: Game instance not available!" << std::endl;
@@ -160,17 +224,30 @@ bool SaveLoadManager::loadGameState(const std::string& filename) {
         loadFilename = saveDir + "/" + filename;
     }
 
+    // std::cout << "[DEBUG Load] Final load path: " << loadFilename << std::endl; // Optional Debug Log
+
     std::ifstream loadFile(loadFilename);
     if (!loadFile.is_open()) {
         std::cerr << "Error: Could not open load file: " << loadFilename << std::endl;
         return false;
     }
 
+<<<<<<< HEAD
     gameInstance->manager.refresh(); 
     for(auto& e : gameInstance->manager.getGroup(Game::groupEnemies)) if(e && e->isActive()) e->destroy();
     for(auto& p : gameInstance->manager.getGroup(Game::groupProjectiles)) if(p && p->isActive()) p->destroy();
     for(auto& o : gameInstance->manager.getGroup(Game::groupExpOrbs)) if(o && o->isActive()) o->destroy();
     gameInstance->manager.refresh(); 
+=======
+    // std::cout << "[DEBUG Load] Resetting current game state before loading..." << std::endl; // Optional Debug Log
+    // Reset state BEFORE loading
+    gameInstance->manager.refresh(); // Clear entities first
+    for(auto& e : gameInstance->manager.getGroup(Game::groupEnemies)) if(e && e->isActive()) e->destroy();
+    for(auto& p : gameInstance->manager.getGroup(Game::groupProjectiles)) if(p && p->isActive()) p->destroy();
+    for(auto& o : gameInstance->manager.getGroup(Game::groupExpOrbs)) if(o && o->isActive()) o->destroy();
+    gameInstance->manager.refresh(); // Process destruction
+    // std::cout << "[DEBUG Load] State reset complete." << std::endl; // Optional Debug Log
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 
     Player* playerManager = gameInstance->playerManager;
     Entity* playerEntity = gameInstance->playerEntity;
@@ -190,18 +267,28 @@ bool SaveLoadManager::loadGameState(const std::string& filename) {
             playerSpells.push_back(spellComp);
         }
     }
+    // std::cout << "[DEBUG Load] Pre-fetched " << playerSpells.size() << " existing spell components." << std::endl; // Optional Debug Log
 
+    // std::cout << "[DEBUG Load] Starting line-by-line file read..." << std::endl; // Optional Debug Log
     while (std::getline(loadFile, line)) {
         std::size_t separatorPos = line.find(':');
         if (separatorPos == std::string::npos) {
+<<<<<<< HEAD
 
+=======
+            // std::cerr << "[DEBUG Load] Skipping invalid line (no ':'): " << line << std::endl; // Optional Debug Log
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
             continue;
         }
 
         key = line.substr(0, separatorPos);
         value = line.substr(separatorPos + 1);
 
+        // Optional Debug Log for each key-value pair
+        // std::cout << "[DEBUG Load] Loading Key: '" << key << "', Value: '" << value << "'" << std::endl;
+
         try {
+<<<<<<< HEAD
 
             if (key == "PlayerName") {
                 gameInstance->setPlayerName(value);
@@ -298,20 +385,136 @@ bool SaveLoadManager::loadGameState(const std::string& filename) {
 
             }
 
+=======
+            // Player Stats
+            if (key == "PlayerName") {
+                gameInstance->setPlayerName(value);
+            }
+            else if (key == "PlayerLevel") {
+                if (playerManager) playerManager->setLevel(std::stoi(value));
+                else { std::cerr << "Warning: Cannot load PlayerLevel, PlayerManager is null." << std::endl; }
+            }
+            else if (key == "PlayerExperience") {
+                 if (playerManager) playerManager->setExperience(std::stoi(value));
+                 else { std::cerr << "Warning: Cannot load PlayerExperience, PlayerManager is null." << std::endl; }
+            }
+            else if (key == "PlayerExpToNext") {
+                 if (playerManager) playerManager->setExperienceToNextLevel(std::stoi(value));
+                 else { std::cerr << "Warning: Cannot load PlayerExpToNext, PlayerManager is null." << std::endl; }
+            }
+            else if (key == "PlayerEnemiesDefeated") {
+                 if (playerManager) playerManager->setEnemiesDefeated(std::stoi(value));
+                 else { std::cerr << "Warning: Cannot load PlayerEnemiesDefeated, PlayerManager is null." << std::endl; }
+            }
+            else if (key == "PlayerHealth") {
+                if (playerEntity->hasComponent<HealthComponent>()) playerEntity->getComponent<HealthComponent>().setHealth(std::stoi(value));
+                else { std::cerr << "Warning: Cannot load PlayerHealth, HealthComponent missing." << std::endl; }
+            }
+            else if (key == "PlayerMaxHealth") {
+                if (playerEntity->hasComponent<HealthComponent>()) playerEntity->getComponent<HealthComponent>().setMaxHealth(std::stoi(value));
+                 else { std::cerr << "Warning: Cannot load PlayerMaxHealth, HealthComponent missing." << std::endl; }
+            }
+            else if (key == "PlayerPosX") {
+                 if (playerEntity->hasComponent<TransformComponent>()) playerEntity->getComponent<TransformComponent>().position.x = std::stof(value);
+                 else { std::cerr << "Warning: Cannot load PlayerPosX, TransformComponent missing." << std::endl; }
+            }
+            else if (key == "PlayerPosY") {
+                 if (playerEntity->hasComponent<TransformComponent>()) playerEntity->getComponent<TransformComponent>().position.y = std::stof(value);
+                 else { std::cerr << "Warning: Cannot load PlayerPosY, TransformComponent missing." << std::endl; }
+            }
+            // *** Load PlayerLifesteal ***
+            else if (key == "PlayerLifesteal") {
+                if (playerManager) playerManager->setLifestealPercentage(std::stof(value));
+                else { std::cerr << "Warning: Cannot load PlayerLifesteal, PlayerManager is null." << std::endl; }
+            }
+
+
+            // Weapon Stats
+            else if (key == "WeaponTag") {
+                 if (playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().tag = value;
+                 else { std::cerr << "Warning: Cannot load WeaponTag, WeaponComponent missing." << std::endl; }
+            }
+            else if (key == "WeaponLevel") {
+                 if (playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().setLevel(std::stoi(value));
+                 else { std::cerr << "Warning: Cannot load WeaponLevel, WeaponComponent missing." << std::endl; }
+            }
+            else if (key == "WeaponDamage") {
+                 if (playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().damage = std::stoi(value);
+                 else { std::cerr << "Warning: Cannot load WeaponDamage, WeaponComponent missing." << std::endl; }
+            }
+            else if (key == "WeaponFireRate") {
+                 if (playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().fireRate = std::stoi(value);
+                 else { std::cerr << "Warning: Cannot load WeaponFireRate, WeaponComponent missing." << std::endl; }
+            }
+            else if (key == "WeaponProjSpeed") {
+                 if (playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().projectileSpeed = std::stof(value);
+                 else { std::cerr << "Warning: Cannot load WeaponProjSpeed, WeaponComponent missing." << std::endl; }
+            }
+            else if (key == "WeaponSpread") {
+                 if (playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().spreadAngle = std::stof(value);
+                 else { std::cerr << "Warning: Cannot load WeaponSpread, WeaponComponent missing." << std::endl; }
+            }
+            else if (key == "WeaponProjCount") {
+                 if (playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().projectilesPerShot = std::stoi(value);
+                 else { std::cerr << "Warning: Cannot load WeaponProjCount, WeaponComponent missing." << std::endl; }
+            }
+            else if (key == "WeaponProjSize") {
+                 if (playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().projectileSize = std::stoi(value);
+                 else { std::cerr << "Warning: Cannot load WeaponProjSize, WeaponComponent missing." << std::endl; }
+            }
+            else if (key == "WeaponProjTexture") {
+                 if (playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().projectileTexture = value;
+                 else { std::cerr << "Warning: Cannot load WeaponProjTexture, WeaponComponent missing." << std::endl; }
+            }
+            else if (key == "WeaponPierce") {
+                 if (playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().projectilePierce = std::stoi(value);
+                 else { std::cerr << "Warning: Cannot load WeaponPierce, WeaponComponent missing." << std::endl; }
+            }
+            else if (key == "WeaponBurstCount") {
+                 if (playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().shotsPerBurst = std::stoi(value);
+                 else { std::cerr << "Warning: Cannot load WeaponBurstCount, WeaponComponent missing." << std::endl; }
+            }
+            else if (key == "WeaponBurstDelay") {
+                 if (playerEntity->hasComponent<WeaponComponent>()) playerEntity->getComponent<WeaponComponent>().burstDelay = std::stoi(value);
+                 else { std::cerr << "Warning: Cannot load WeaponBurstDelay, WeaponComponent missing." << std::endl; }
+            }
+
+            // Spell Stats
+            else if (key == "SpellIndex") {
+                 spellLoadIndex = std::stoi(value);
+                 // Optional Debug Log for index boundary check
+                 // if (spellLoadIndex < 0 || static_cast<size_t>(spellLoadIndex) >= playerSpells.size()) {
+                 //     std::cerr << "[DEBUG Load] Warning: SpellIndex " << spellLoadIndex << " is out of bounds for pre-fetched spells (count=" << playerSpells.size() << ")." << std::endl;
+                 // }
+            }
+            // Check if spellLoadIndex is valid before attempting to access playerSpells
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
             else if (spellLoadIndex >= 0 && static_cast<size_t>(spellLoadIndex) < playerSpells.size()) {
                 SpellComponent* currentSpell = playerSpells[spellLoadIndex];
                 if (!currentSpell) {
                      std::cerr << "Warning: Pre-fetched spell component at index " << spellLoadIndex << " is unexpectedly null. Skipping load for key '" << key << "'." << std::endl;
+<<<<<<< HEAD
                      continue; 
                 }
 
                 if (key == "SpellTag") {
 
+=======
+                     continue; // Skip to next line
+                }
+
+                if (key == "SpellTag") {
+                    // std::cout << "[DEBUG Load] Setting Spell " << spellLoadIndex << " Tag to: '" << value << "'" << std::endl; // Optional Debug Log
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
                     currentSpell->tag = value;
                 }
                 else if (key == "SpellLevel") {
                      currentSpell->setLevel(std::stoi(value));
+<<<<<<< HEAD
 
+=======
+                     // std::cout << "[DEBUG Load] Set Spell " << spellLoadIndex << " Level to: " << currentSpell->getLevel() << std::endl; // Optional Debug Log
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
                 }
                 else if (key == "SpellDamage") {
                      currentSpell->damage = std::stoi(value);
@@ -324,7 +527,11 @@ bool SaveLoadManager::loadGameState(const std::string& filename) {
                 }
                 else if (key == "SpellProjCount") {
                      currentSpell->projectilesPerCast = std::stoi(value);
+<<<<<<< HEAD
 
+=======
+                     // std::cout << "[DEBUG Load] Set Spell " << spellLoadIndex << " ProjCount to: " << currentSpell->projectilesPerCast << std::endl; // Optional Debug Log
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
                 }
                 else if (key == "SpellProjSize") {
                      currentSpell->projectileSize = std::stoi(value);
@@ -332,7 +539,12 @@ bool SaveLoadManager::loadGameState(const std::string& filename) {
                 else if (key == "SpellProjTexture") {
                      currentSpell->projectileTexture = value;
                 }
+<<<<<<< HEAD
 
+=======
+                // *** SpellDuration is not loaded ***
+                // else if (key == "SpellDuration") { /* Do nothing */ }
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
                 else if (key == "SpellTrajectory") {
                      currentSpell->trajectoryMode = static_cast<SpellTrajectory>(std::stoi(value));
                 }
@@ -342,26 +554,55 @@ bool SaveLoadManager::loadGameState(const std::string& filename) {
                 else if (key == "SpellPierce") {
                      currentSpell->projectilePierce = std::stoi(value);
                 }
+<<<<<<< HEAD
 
             }
             else if (key == "TotalSpells") {
 
             }
+=======
+                // Add else if for other spell keys if needed
+            }
+            else if (key == "TotalSpells") {
+                 // Optional check: Compare std::stoi(value) with playerSpells.size()
+                 // std::cout << "[DEBUG Load] TotalSpells in file: " << value << std::endl; // Optional Debug Log
+            }
+            // Add else for unrecognized keys
+            // else {
+            //     // Only log if it's not an out-of-bounds SpellIndex related key
+            //     if (key != "SpellTag" && key != "SpellLevel" && key != "SpellDamage" /* etc... */) {
+            //          std::cerr << "[DEBUG Load] Warning: Unrecognized key in save file: '" << key << "'" << std::endl;
+            //     }
+            // }
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 
         } catch (const std::invalid_argument& ia) {
             std::cerr << "[DEBUG Load] Load Error (Invalid Argument): Key='" << key << "', Value='" << value << "'. Skipping. Error: " << ia.what() << std::endl;
         } catch (const std::out_of_range& oor) {
             std::cerr << "[DEBUG Load] Load Error (Out of Range): Key='" << key << "', Value='" << value << "'. Skipping. Error: " << oor.what() << std::endl;
+<<<<<<< HEAD
         } catch (const std::exception& e) { 
+=======
+        } catch (const std::exception& e) { // Catch other potential exceptions
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
             std::cerr << "[DEBUG Load] Load Error (General Exception): Key='" << key << "', Value='" << value << "'. Skipping. Error: " << e.what() << std::endl;
         }
     } 
 
     loadFile.close();
 
+<<<<<<< HEAD
     if (playerEntity->hasComponent<TransformComponent>()) {
 
         int currentWindowWidth = WINDOW_WIDTH, currentWindowHeight = WINDOW_HEIGHT; 
+=======
+    // --- Post-Load Adjustments ---
+    // std::cout << "[DEBUG Load] Performing post-load adjustments..." << std::endl; // Optional Debug Log
+    if (playerEntity->hasComponent<TransformComponent>()) {
+        // Update camera position based on loaded player position
+        // Ensure camera dimensions are current before calculating offsets
+        int currentWindowWidth = WINDOW_WIDTH, currentWindowHeight = WINDOW_HEIGHT; // Use constants as fallback
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
         if(Game::renderer) { SDL_GetRendererOutputSize(Game::renderer, &currentWindowWidth, &currentWindowHeight); }
         Game::camera.w = currentWindowWidth;
         Game::camera.h = currentWindowHeight;
@@ -369,6 +610,7 @@ bool SaveLoadManager::loadGameState(const std::string& filename) {
         Game::camera.x = static_cast<int>(playerEntity->getComponent<TransformComponent>().position.x - (Game::camera.w / 2.0f));
         Game::camera.y = static_cast<int>(playerEntity->getComponent<TransformComponent>().position.y - (Game::camera.h / 2.0f));
 
+<<<<<<< HEAD
         int mapPixelWidth = MAP_WIDTH * TILE_SIZE; 
         int mapPixelHeight = MAP_HEIGHT * TILE_SIZE; 
         Game::camera.x = std::max(0, std::min(Game::camera.x, mapPixelWidth - Game::camera.w));
@@ -376,15 +618,36 @@ bool SaveLoadManager::loadGameState(const std::string& filename) {
 
      }
 
+=======
+        // Clamp camera after loading
+        int mapPixelWidth = MAP_WIDTH * TILE_SIZE; // Assuming TILE_SIZE is accessible or defined globally/passed
+        int mapPixelHeight = MAP_HEIGHT * TILE_SIZE; // Assuming MAP_HEIGHT is accessible
+        Game::camera.x = std::max(0, std::min(Game::camera.x, mapPixelWidth - Game::camera.w));
+        Game::camera.y = std::max(0, std::min(Game::camera.y, mapPixelHeight - Game::camera.h));
+        // std::cout << "[DEBUG Load] Camera clamped to: x=" << Game::camera.x << ", y=" << Game::camera.y << ", w=" << Game::camera.w << ", h=" << Game::camera.h << std::endl; // Optional Debug Log
+     }
+
+    // Ensure health doesn't exceed max health after loading potential individual values
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
      if (playerEntity->hasComponent<HealthComponent>()) {
           auto& health = playerEntity->getComponent<HealthComponent>();
           if (health.getHealth() > health.getMaxHealth()) {
                health.setHealth(health.getMaxHealth());
+<<<<<<< HEAD
 
+=======
+               // std::cout << "[DEBUG Load] Player health clamped to max health (" << health.getMaxHealth() << ")." << std::endl; // Optional Debug Log
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
           }
      }
 
+     // std::cout << "[DEBUG Load] Updating spawn pool weights..." << std::endl; // Optional Debug Log
      gameInstance->updateSpawnPoolAndWeights();
 
+<<<<<<< HEAD
     return true; 
+=======
+    // std::cout << "[DEBUG Load] Game state loaded successfully." << std::endl; // Optional Debug Log
+    return true; // Indicate success
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 }

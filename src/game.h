@@ -109,6 +109,11 @@ public:
     Game();
     ~Game();
 
+<<<<<<< HEAD
+=======
+    // --- Public Methods ---
+    // Initialization & Cleanup
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
     void init();
     void clean();
 
@@ -197,7 +202,11 @@ private:
     void handleEnemySpawning(Uint32 currentTime);
     void updateCamera(TransformComponent& playerTransform);
     void checkPlayerDeath(HealthComponent& playerHealth);
+<<<<<<< HEAD
     void spawnBossAt(Vector2D spawnPos); 
+=======
+    void spawnBossAt(Vector2D spawnPos); // Helper for boss spawning
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 
     void handlePauseMenuEvents();
     void handleBuffSelectionEvents();

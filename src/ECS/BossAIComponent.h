@@ -42,12 +42,23 @@ class BossAIComponent : public Component {
     int projectileDamage;
     float knockbackForce;
 
+<<<<<<< HEAD
     int baseProjectileCount = 5;
     int baseBurstCount = 2;
     int currentProjectileCount = 5;
     int currentBurstCount = 2;
     Uint32 projectileAttackInterval = 5000;
     Uint32 burstDelay = 100;
+=======
+
+    // Projectile Attack Config
+    int baseProjectileCount = 5;        // Base number of projectiles per spread shot
+    int baseBurstCount = 2;             // Base number of shots in a burst sequence
+    int currentProjectileCount = 5;     // Current (scaled) number of projectiles per shot
+    int currentBurstCount = 2;          // Current (scaled) number of shots per burst
+    Uint32 projectileAttackInterval = 5000; // Time (ms) between start of projectile attack sequences
+    Uint32 burstDelay = 100;            // Time (ms) between shots within a burst
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 
     Uint32 preChargeDuration = 1000;
     Uint32 chargeDuration = 300;

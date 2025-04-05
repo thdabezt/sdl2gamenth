@@ -8,7 +8,11 @@
 #include "game.h"
 #include "Scene/SceneComponent.h" 
 
+<<<<<<< HEAD
 static SDL_Window* mainWindow = nullptr; 
+=======
+
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 
 void setupConsole() {
     if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole()) {
@@ -44,8 +48,13 @@ void toggleFullscreen() {
 }
 
 int main(int argc, char* argv[]) {
+<<<<<<< HEAD
     (void)argc; 
     (void)argv; 
+=======
+    (void)argc; // Suppress unused parameter warning
+    (void)argv; // Suppress unused parameter warning
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 
     setupConsole();
 
@@ -70,8 +79,13 @@ int main(int argc, char* argv[]) {
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) { 
         std::cerr << "SDL_mixer could not initialize! SDL_mixer Error: " << Mix_GetError() << std::endl;
     } else {
+<<<<<<< HEAD
         Mix_AllocateChannels(16); 
 
+=======
+        Mix_AllocateChannels(16); // Allocate mixer channels
+  
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
     }
 
     Uint32 windowFlags = SDL_WINDOW_SHOWN | (WINDOW_FULLSCREEN ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);

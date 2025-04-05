@@ -36,9 +36,17 @@ Vector2D getPlayerTransformCenter(Entity* pEntity) {
     return Vector2D();
 }
 
+<<<<<<< HEAD
 BossAIComponent::BossAIComponent(float moveSpeed, float approachDist,
                                  float contactDist, int slamDmg, int projDmg,
                                  float knockback, Entity* playerEnt)
+=======
+
+// --- Method Definitions ---
+
+// --- Constructor ---
+BossAIComponent::BossAIComponent(float moveSpeed, float approachDist, float contactDist, int slamDmg, int projDmg, float knockback, Entity* playerEnt)
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
     : playerEntity(playerEnt),
       speed(moveSpeed),
       approachDistanceThreshold(approachDist),
@@ -356,6 +364,7 @@ void BossAIComponent::shootSingleBurstProjectile() {
 
     int numProjectiles = currentProjectileCount;
     const double PI = acos(-1.0);
+<<<<<<< HEAD
     (void)PI;
     float totalSpreadAngleRad = 0.8f;
     float angleStep = (numProjectiles > 1)
@@ -363,6 +372,12 @@ void BossAIComponent::shootSingleBurstProjectile() {
                           : 0.0f;
     float startAngle =
         (numProjectiles > 1) ? -totalSpreadAngleRad / 2.0f : 0.0f;
+=======
+    (void)PI; // Avoid unused variable warning
+    float totalSpreadAngleRad = 0.8f; // Approx 45 degrees in radians
+    float angleStep = (numProjectiles > 1) ? totalSpreadAngleRad / (numProjectiles - 1) : 0.0f;
+    float startAngle = (numProjectiles > 1) ? -totalSpreadAngleRad / 2.0f : 0.0f;
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 
     for (int i = 0; i < numProjectiles; ++i) {
         float currentAngleOffset = startAngle + i * angleStep;

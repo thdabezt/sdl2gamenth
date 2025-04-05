@@ -28,12 +28,22 @@ private:
     int contactDamage;
     int expValue;
     Entity* playerEntity = nullptr;
+<<<<<<< HEAD
     Vector2D* playerPosition = nullptr; 
+=======
+    Vector2D* playerPosition = nullptr; // Pointer to the player's Transform position
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 
     Uint32 lastDamageTime = 0;
     const Uint32 damageInterval = 1000; 
     bool initialized = false;
 
+<<<<<<< HEAD
+=======
+    
+    
+
+>>>>>>> 48aebd591664aaebcc837f2de6b6a7394e56c0f2
 public:
 
     EnemyAIComponent(int range, float moveSpeed, Vector2D* playerTransformPosPtr, int damage = 10, int exp = 1, Entity* player = nullptr)
