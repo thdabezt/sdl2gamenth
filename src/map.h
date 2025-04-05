@@ -10,7 +10,6 @@ public:
     Map(Manager& manager, std::string tID, int mscale, int tsize);
     ~Map();
 
-    // Updated LoadMap signature
     void LoadMap(std::string path, int sizeX, int sizeY, int griWidth, std::vector<Vector2D>& outSpawnPoints);
     void AddTile(int srcX, int srcY, int xpos, int ypos);
 

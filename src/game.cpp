@@ -1,4 +1,3 @@
-// Fetched content of Game/src/game.cpp
 #include "game.h"
 #include <iostream>
 #include <SDL.h>
@@ -17,8 +16,6 @@
 #include <sstream>
 #include "SaveLoadManager.h"
 
-
-// --- Static Member Initialization ---
 Game* Game::instance = nullptr;
 SDL_Event Game::event;
 SDL_Renderer *Game::renderer = nullptr;
@@ -28,9 +25,6 @@ int Game::musicVolume = MIX_MAX_VOLUME / 2;
 int Game::sfxVolume = MIX_MAX_VOLUME / 2;
 SDL_Rect Game::camera = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
 bool Game::isRunning = false;
-
-
-// --- Constructor & Destructor ---
 
 Game::Game() {
     if (instance != nullptr) {
@@ -56,9 +50,7 @@ Game::~Game(){
     instance = nullptr;
 }
 
-// --- Initialization & Cleanup ---
-
-void Game::init(const char *title, int xpos, int ypos, int width, int height, bool fullscreen){
+void Game::init(){
     if (!Game::renderer) {
         std::cerr << "Error: Game::init called but Game::renderer is null!" << std::endl;
         isRunning = false;
@@ -76,7 +68,6 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
 
     initializeEnemyDatabase();
 
-    // --- Load Assets ---
     assets->AddTexture("terrain", MAP);
     assets->AddTexture("player", playerSprites);
     assets->AddTexture("projectile", "sprites/projectile/gunshot.png");
@@ -126,8 +117,8 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
             enemyTexFailed++;
             std::cerr << "ERROR: Failed to load texture for enemy: '" << enemyData.tag << "' path: " << enemyData.sprite << std::endl;
         } else {
-            assets->AddTexture(enemyData.tag, enemyData.sprite); // Use AddTexture to store correctly
-            SDL_DestroyTexture(loadedTexture); // Free the temporarily loaded texture
+            assets->AddTexture(enemyData.tag, enemyData.sprite); 
+            SDL_DestroyTexture(loadedTexture); 
         }
     }
     if (enemyTexFailed > 0) {
@@ -143,7 +134,6 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
         isRunning = false; return;
     }
 
-    // --- Player Setup ---
     playerEntity = &manager.addEntity();
     playerEntity->addComponent<TransformComponent>(CHAR_X, CHAR_Y, CHAR_W, CHAR_H, 2);
     playerEntity->addComponent<SpriteComponent>("player", true);
@@ -155,10 +145,32 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
     playerEntity->getComponent<SoundComponent>().addSoundEffect("star_cast", "star_spell_sound");
     playerEntity->getComponent<SoundComponent>().setBackgroundMusic("level_music", true, -1);
     playerEntity->getComponent<SoundComponent>().addSoundEffect("gameover_sfx", "gameover_sfx");
-    playerEntity->addComponent<HealthComponent>(1, 1); // Placeholder
-    playerEntity->addComponent<WeaponComponent>( "placeholder", 0, 99999, 0.0f, 0.0f, 1, 1, "projectile", 1, 1, 50); // Placeholder
-    playerEntity->addComponent<SpellComponent>( "placeholder_spell", 5, 100, 1.5f, 1, 16, "fire", SpellTrajectory::SPIRAL, 0.5f, 10); // Placeholder Fire
-    playerEntity->addComponent<SpellComponent>( "placeholder_star", 0, 99999, 0.0f, 1, 1, "starproj", SpellTrajectory::RANDOM_DIRECTION, 0.0f, 1); // Placeholder Star
+    playerEntity->addComponent<HealthComponent>(1, 1); 
+    playerEntity->addComponent<WeaponComponent>( "placeholder", 0, 99999, 0.0f, 0.0f, 1, 1, "projectile", 1, 1, 50); 
+    playerEntity->addComponent<SpellComponent>(
+        "placeholder_spell", 
+        5,                   
+        100,                 
+        1.5f,                
+        1,                   
+        16,                  
+        "fire",              
+        SpellTrajectory::SPIRAL, 
+        0.5f,                
+        10                   
+    );
+    playerEntity->addComponent<SpellComponent>(
+        "placeholder_star",  
+        0,                   
+        99999,               
+        0.0f,                
+        1,                   
+        1,                   
+        "starproj",          
+        SpellTrajectory::RANDOM_DIRECTION, 
+        0.0f,                
+        1                    
+    );
     playerEntity->addGroup(groupPlayers);
 
     delete playerManager;
@@ -176,16 +188,14 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
     Mix_VolumeMusic(Game::musicVolume);
     Mix_Volume(-1, Game::sfxVolume);
 
-    // --- Map Load ---
     delete map;
     map = new Map(manager, "terrain", 1, 32);
     map->LoadMap("assets/map.map", MAP_WIDTH, MAP_HEIGHT, 10, spawnPoints);
 
-    // --- Pause Menu Resources Init ---
     pauseFont = TTF_OpenFont("assets/font.ttf", 12);
     if (!pauseFont) {
         std::cerr << "Failed to load pause font! SDL_ttf Error: " << TTF_GetError() << std::endl;
-        if(ui && ui->getFont()) pauseFont = ui->getFont(); // Fallback
+        if(ui && ui->getFont()) pauseFont = ui->getFont(); 
     }
 
     pauseBoxTex = assets->GetTexture("pausebox");
@@ -203,9 +213,8 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
     isDraggingBgmPause = false;
     isDraggingSfxPause = false;
 
-    // --- Game Over Resources Init ---
     gameOverTex = assets->GetTexture("gameover");
-    gameOverFont = pauseFont; // Reuse pause font
+    gameOverFont = pauseFont; 
     if (!gameOverFont) {
          std::cerr << "Error: Font not available for Game Over text!" << std::endl;
     } else {
@@ -219,6 +228,28 @@ void Game::init(const char *title, int xpos, int ypos, int width, int height, bo
          } else { std::cerr << "Failed to render game over text surface!" << std::endl; }
     }
 
+    std::cout << "[DEBUG Init] Checking components immediately after init AND load..." << std::endl;
+    if (playerEntity) {
+        int foundSpells = 0;
+        std::cout << "[DEBUG Init] Total components on Player: " << playerEntity->getAllComponents().size() << std::endl;
+        for (const auto& compPtr : playerEntity->getAllComponents()) {
+            if (compPtr) {
+                if (SpellComponent* sc = dynamic_cast<SpellComponent*>(compPtr.get())) {
+                    std::cout << "[DEBUG Init]  ==> FOUND SpellComponent! Tag: '" << sc->getTag()
+                            << "', Level: " << sc->getLevel()
+                            << ", ProjCount: " << sc->projectilesPerCast << std::endl;
+                    foundSpells++;
+                }
+            } else {
+                std::cout << "[DEBUG Init]  -> Encountered a null component!" << std::endl;
+            }
+        }
+        std::cout << "[DEBUG Init] Total SpellComponents found after init: " << foundSpells << std::endl;
+    } else {
+        std::cerr << "[DEBUG Init] Error: playerEntity is null at end of init!" << std::endl;
+    }
+    std::cout << "--------------------------------------------------" << std::endl;
+
     updateSpawnPoolAndWeights();
     isRunning = true;
 }
@@ -230,7 +261,7 @@ void Game::clean(){
         playerEntity->destroy();
         playerEntity = nullptr;
     }
-    manager.refresh(); // Process destruction flags
+    manager.refresh(); 
 
     if (map) { delete map; map = nullptr; }
     if (ui) { delete ui; ui = nullptr; }
@@ -247,8 +278,6 @@ void Game::clean(){
     std::cout<< "Game instance resources cleaned."<< std::endl;
 }
 
-// --- Game Loop ---
-
 void Game::handleEvents() {
     if (Game::event.type == SDL_QUIT) {
         isRunning = false;
@@ -263,15 +292,15 @@ void Game::handleEvents() {
                     return;
                 }
                 if (Game::event.key.keysym.sym == SDLK_l) {
-                    #ifdef DEBUG // Or replace with a simple bool flag
+                    #ifdef DEBUG 
                     if(playerManager) playerManager->levelUp();
                     #endif
                     return;
                 }
                 if (Game::event.key.keysym.sym == SDLK_b) {
-                    #ifdef DEBUG // Or replace with a simple bool flag
+                    #ifdef DEBUG 
                     std::cout << "[DEBUG] 'B' pressed. Summoning boss." << std::endl;
-                    spawnBossNearPlayer(); // Keep this for debug, spawnBoss() is for level 10
+                    spawnBossNearPlayer(); 
                     #endif
                     return;
                 }
@@ -284,9 +313,9 @@ void Game::handleEvents() {
 
         case GameState::Paused:
             if (isInBuffSelection) {
-                handleBuffSelectionEvents(); // Separate helper
+                handleBuffSelectionEvents(); 
             } else {
-                handlePauseMenuEvents(); // Separate helper
+                handlePauseMenuEvents(); 
             }
             break;
 
@@ -313,7 +342,6 @@ void Game::update(){
     Uint32 currentTime = SDL_GetTicks();
     manager.update();
 
-    // --- Collision & Logic ---
     if (!playerEntity->hasComponent<ColliderComponent>() || !playerEntity->hasComponent<TransformComponent>() || !playerEntity->hasComponent<HealthComponent>()) {
          std::cerr << "Error in Game::update: Player missing required components!" << std::endl;
          return;
@@ -327,7 +355,7 @@ void Game::update(){
     handleProjectileCollisions(currentTime);
     handleEnemySpawning(currentTime);
     updateCamera(playerTransform);
-    checkPlayerDeath(playerHealth, currentTime);
+    checkPlayerDeath(playerHealth);
 }
 
 void Game::render(){
@@ -340,7 +368,7 @@ void Game::render(){
     SDL_RenderClear(renderer);
 
     if (currentState == GameState::Playing || currentState == GameState::Paused || currentState == GameState::GameOver) {
-        // --- Render Gameplay Elements ---
+
         for(auto* t : manager.getGroup(Game::groupMap)) if(t && t->isActive()) t->draw();
         for(auto* o : manager.getGroup(Game::groupExpOrbs)) if(o && o->isActive()) o->draw();
         for(auto* p : manager.getGroup(Game::groupProjectiles)) if(p && p->isActive()) p->draw();
@@ -352,7 +380,6 @@ void Game::render(){
             }
         }
 
-        // --- Render UI Overlays ---
         if (currentState == GameState::Playing && ui && playerManager) {
              ui->renderUI(playerManager);
         }
@@ -365,8 +392,6 @@ void Game::render(){
     }
     SDL_RenderPresent(renderer);
 }
-
-// --- Event Handling Helpers ---
 
 void Game::handlePauseMenuEvents() {
     int mouseX_Screen, mouseY_Screen;
@@ -396,7 +421,7 @@ void Game::handlePauseMenuEvents() {
          if (isDraggingBgmPause || isDraggingSfxPause) { isDraggingBgmPause = false; isDraggingSfxPause = false; }
     }
     else if (currentEvent.type == SDL_MOUSEMOTION) {
-         handleSliderDrag(mouseX_Screen, mouseY_Screen);
+         handleSliderDrag(mouseX_Screen);
     }
     else if (currentEvent.type == SDL_KEYDOWN) {
         if (currentEvent.key.keysym.sym == SDLK_ESCAPE) { togglePause(); return; }
@@ -426,7 +451,7 @@ void Game::handleBuffSelectionEvents() {
     }
 }
 
-void Game::handleSliderDrag(int mouseX_Screen, int mouseY_Screen) {
+void Game::handleSliderDrag(int mouseX_Screen) {
     int w, h;
     if(Game::renderer) SDL_GetRendererOutputSize(Game::renderer, &w, &h); else { w = 800; h = 600; }
 
@@ -456,8 +481,6 @@ void Game::handleSliderDrag(int mouseX_Screen, int mouseY_Screen) {
         }
     }
 }
-
-// --- Rendering Helpers ---
 
 void Game::renderPausedState() {
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
@@ -547,19 +570,17 @@ void Game::renderHealthBar(Entity& entity, Vector2D position) {
 
     if (xPos + barWidth < 0 || xPos > Game::camera.w || yPos + barHeight < 0 || yPos > Game::camera.h) return;
 
-    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255); // Background
+    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255); 
     SDL_Rect bgRect = {xPos - 1, yPos - 1, barWidth + 2, barHeight + 2};
     SDL_RenderFillRect(renderer, &bgRect);
 
     float healthPercent = static_cast<float>(health.getHealth()) / health.getMaxHealth();
     int currentBarWidth = static_cast<int>(barWidth * healthPercent);
     int r = static_cast<int>(255 * (1.0f - healthPercent)); int g = static_cast<int>(255 * healthPercent);
-    SDL_SetRenderDrawColor(renderer, r, g, 0, 255); // Fill
+    SDL_SetRenderDrawColor(renderer, r, g, 0, 255); 
     SDL_Rect healthRect = {xPos, yPos, currentBarWidth, barHeight};
     SDL_RenderFillRect(renderer, &healthRect);
 }
-
-// --- Update Helpers ---
 
 void Game::handleTerrainCollision(ColliderComponent& playerCollider, TransformComponent& playerTransform, SDL_Rect& playerColRect) {
     for (auto* c : manager.getGroup(Game::groupColliders)) {
@@ -581,7 +602,7 @@ void Game::handleTerrainCollision(ColliderComponent& playerCollider, TransformCo
                      playerTransform.position.y += (centerPlayer.y < centerObstacle.y ? -overlapY : overlapY);
                  }
                  playerCollider.update();
-                 playerColRect = playerCollider.collider; // Update local rect
+                 playerColRect = playerCollider.collider; 
              }
         }
     }
@@ -592,7 +613,6 @@ void Game::handleProjectileCollisions(Uint32 currentTime) {
     auto& enemies = manager.getGroup(Game::groupEnemies);
     SDL_Texture* bossProjTexture = Game::instance && Game::instance->assets ? Game::instance->assets->GetTexture("boss_projectile") : nullptr;
 
-    // Projectile vs Enemy
     for (auto* p : projectiles) {
          if (!p || !p->isActive() || !p->hasComponent<ColliderComponent>() || !p->hasComponent<ProjectileComponent>() || !p->hasComponent<SpriteComponent>() || !p->hasComponent<TransformComponent>()) continue;
 
@@ -600,23 +620,21 @@ void Game::handleProjectileCollisions(Uint32 currentTime) {
          ProjectileComponent& projComp = p->getComponent<ProjectileComponent>();
          SpriteComponent& projSprite = p->getComponent<SpriteComponent>();
 
-         // Skip if it's a boss projectile vs enemy
          if (bossProjTexture && projSprite.getTexture() == bossProjTexture) {
              continue;
          }
 
          for (auto* e : enemies) {
              if (!e || !e->isActive() || !e->hasComponent<ColliderComponent>()) continue;
-             if (projComp.hasHit(e)) continue; // Skip if already hit this pierce cycle
+             if (projComp.hasHit(e)) continue; 
 
              if (Collision::AABB(e->getComponent<ColliderComponent>().collider, projectileColliderComp.collider)) {
                  handleProjectileHitEnemy(p, e, projComp, currentTime);
-                 if (!p->isActive()) break; // Projectile destroyed, stop checking enemies for it
+                 if (!p->isActive()) break; 
              }
          }
      }
 
-     // Projectile vs Player
      ColliderComponent& playerCollider = playerEntity->getComponent<ColliderComponent>();
      SDL_Rect playerColRect = playerCollider.collider;
      for (auto* p : projectiles) {
@@ -625,7 +643,6 @@ void Game::handleProjectileCollisions(Uint32 currentTime) {
          ColliderComponent& projCollider = p->getComponent<ColliderComponent>();
          SpriteComponent& projSprite = p->getComponent<SpriteComponent>();
 
-         // Only check if it's a Boss Projectile hitting the player
          if (bossProjTexture && projSprite.getTexture() == bossProjTexture) {
              if (Collision::AABB(projCollider.collider, playerColRect)) {
                  handleBossProjectileHitPlayer(p, currentTime);
@@ -637,7 +654,6 @@ void Game::handleProjectileCollisions(Uint32 currentTime) {
 void Game::handleProjectileHitEnemy(Entity* projectile, Entity* enemy, ProjectileComponent& projComp, Uint32 currentTime) {
     int damage = projComp.getDamage();
 
-    // Lifesteal
     if (playerManager) {
         float lifestealPercent = playerManager->getLifestealPercentage();
         if (lifestealPercent > 0 && damage > 0) {
@@ -646,7 +662,6 @@ void Game::handleProjectileHitEnemy(Entity* projectile, Entity* enemy, Projectil
         }
     }
 
-    // Damage & Death Check
     if (enemy->hasComponent<HealthComponent>()) {
         HealthComponent& enemyHealth = enemy->getComponent<HealthComponent>();
         enemyHealth.takeDamage(damage);
@@ -655,7 +670,6 @@ void Game::handleProjectileHitEnemy(Entity* projectile, Entity* enemy, Projectil
         }
     }
 
-    // Knockback
     if (enemy->hasComponent<TransformComponent>() && projectile->hasComponent<TransformComponent>()) {
         Vector2D knockbackDir = projectile->getComponent<TransformComponent>().velocity.Normalize();
         float knockbackForce = 35.0f;
@@ -663,13 +677,11 @@ void Game::handleProjectileHitEnemy(Entity* projectile, Entity* enemy, Projectil
         if(enemy->hasComponent<ColliderComponent>()) enemy->getComponent<ColliderComponent>().update();
     }
 
-    // Hit Tint
     if (enemy->hasComponent<SpriteComponent>()) {
         enemy->getComponent<SpriteComponent>().isHit = true;
         enemy->getComponent<SpriteComponent>().hitTime = currentTime;
     }
 
-    // Pierce Check
     projComp.recordHit(enemy);
     if (projComp.shouldDestroy()) {
         projectile->destroy();
@@ -702,7 +714,7 @@ void Game::handleEnemyDeath(Entity* enemy, int maxHp) {
          orb.addGroup(groupExpOrbs);
     }
     if(playerManager) playerManager->incrementEnemiesDefeated();
-    // Entity destruction is handled by HealthComponent::takeDamage
+
 }
 
 void Game::handleBossProjectileHitPlayer(Entity* projectile, Uint32 currentTime) {
@@ -748,7 +760,7 @@ void Game::updateCamera(TransformComponent& playerTransform) {
     camera.y = std::max(0, std::min(camera.y, mapPixelHeight - camera.h));
 }
 
-void Game::checkPlayerDeath(HealthComponent& playerHealth, Uint32 currentTime) {
+void Game::checkPlayerDeath(HealthComponent& playerHealth) {
     if (playerHealth.getHealth() <= 0 && currentState != GameState::GameOver) {
         currentState = GameState::GameOver;
         Mix_HaltMusic();
@@ -759,8 +771,6 @@ void Game::checkPlayerDeath(HealthComponent& playerHealth, Uint32 currentTime) {
         }
     }
 }
-
-// --- Spawning ---
 
 void Game::initializeEnemyDatabase() {
     allEnemyDatabase.clear();
@@ -880,10 +890,10 @@ void Game::spawnEnemy() {
     int finalHealth = static_cast<int>(std::max(1.0f, selectedEnemyInfo->baseHealth * healthDmgModifier));
     int finalDamage = static_cast<int>(std::max(1.0f, selectedEnemyInfo->baseDamage * healthDmgModifier));
 
-    int enemySpriteWidth = 64, enemySpriteHeight = 64; // Adjust if needed
+    int enemySpriteWidth = 64, enemySpriteHeight = 64; 
     enemy.addComponent<TransformComponent>(spawnPosition.x, spawnPosition.y, enemySpriteWidth, enemySpriteHeight, 2);
     enemy.addComponent<SpriteComponent>(selectedEnemyInfo->tag, true);
-    enemy.addComponent<ColliderComponent>(selectedEnemyInfo->tag, 64, 64); // Adjust collider size as needed
+    enemy.addComponent<ColliderComponent>(selectedEnemyInfo->tag, 64, 64); 
     enemy.addComponent<HealthComponent>(finalHealth, finalHealth);
 
     if (!playerEntity->hasComponent<TransformComponent>()) {
@@ -896,7 +906,7 @@ void Game::spawnEnemy() {
     enemy.addGroup(groupEnemies);
 }
 
-void Game::spawnBossNearPlayer() { // Keep for debug use
+void Game::spawnBossNearPlayer() { 
     if (!playerEntity || !playerManager || !playerEntity->hasComponent<TransformComponent>()) {
         std::cerr << "Cannot spawn boss (debug): Player not ready." << std::endl;
         return;
@@ -912,7 +922,7 @@ void Game::spawnBossNearPlayer() { // Keep for debug use
     spawnBossAt(spawnPos);
 }
 
-void Game::spawnBoss() { // For level 10 spawn
+void Game::spawnBoss() { 
     if (spawnPoints.empty() || !playerEntity || !playerManager || !playerEntity->hasComponent<TransformComponent>()) {
         std::cerr << "Cannot spawn boss: No spawn points or player not ready!" << std::endl;
         return;
@@ -927,13 +937,13 @@ void Game::spawnBoss() { // For level 10 spawn
     spawnBossAt(spawnPosition);
 }
 
-void Game::spawnBossAt(Vector2D spawnPos) { // Helper to reduce duplication
+void Game::spawnBossAt(Vector2D spawnPos) { 
     std::cout << "Spawning Boss at (" << spawnPos.x << ", " << spawnPos.y << ")" << std::endl;
 
     auto& boss = manager.addEntity();
     boss.addComponent<TransformComponent>(spawnPos.x, spawnPos.y, BOSS_SPRITE_WIDTH, BOSS_SPRITE_HEIGHT, 1);
     boss.addComponent<SpriteComponent>("boss_walk", true);
-    boss.addComponent<ColliderComponent>("boss", 90, 90); // Adjust collider size as needed
+    boss.addComponent<ColliderComponent>("boss", 90, 90); 
 
     int playerLevel = playerManager ? playerManager->getLevel() : 1;
     float scaleFactor = 1.0f + (static_cast<float>(playerLevel) / 10.0f) + (static_cast<float>(playerLevel) / 20.0f) + (static_cast<float>(playerLevel) / 50.0f);
@@ -952,90 +962,116 @@ void Game::spawnBossAt(Vector2D spawnPos) { // Helper to reduce duplication
     if (ui) { ui->setBossEntity(&boss); }
 }
 
-// --- Buff System ---
-
 void Game::generateBuffOptions() {
-    currentBuffOptions.clear();
+    currentBuffOptions.clear(); 
     if (!playerEntity || !playerManager) { std::cerr << "Cannot generate buffs: player invalid." << std::endl; return; }
     int currentLevel = playerManager->getLevel();
 
     WeaponComponent* weaponComp = playerEntity->hasComponent<WeaponComponent>() ? &playerEntity->getComponent<WeaponComponent>() : nullptr;
     SpellComponent* fireSpellComp = nullptr;
     SpellComponent* starSpellComp = nullptr;
-    for (const auto& compPtr : playerEntity->getAllComponents()) { if (SpellComponent* sc = dynamic_cast<SpellComponent*>(compPtr.get())) { if (sc->getTag() == "spell") fireSpellComp = sc; else if (sc->getTag() == "star") starSpellComp = sc; } }
+
+    for (const auto& compPtr : playerEntity->getAllComponents()) {
+         if (SpellComponent* sc = dynamic_cast<SpellComponent*>(compPtr.get())) {
+
+             if (sc->getTag() == "spell") {
+                 fireSpellComp = sc;
+             } else if (sc->getTag() == "star") {
+                 starSpellComp = sc;
+             }
+
+         }
+    }
+
     int currentWeaponLevel = weaponComp ? weaponComp->getLevel() : -1;
     int currentFireLevel = fireSpellComp ? fireSpellComp->getLevel() : -1;
-    int currentStarLevel = starSpellComp ? starSpellComp->getLevel() : -1;
+    int currentStarLevel = starSpellComp ? starSpellComp->getLevel() : -1; 
     bool isFireLv0 = (currentFireLevel == 0);
-    bool isStarLv0 = (currentStarLevel == 0);
+    bool isStarLv0 = (currentStarLevel == 0); 
 
-    std::vector<BuffInfo> allPossibleBuffs;
+    std::vector<BuffInfo> grantBuffs;
 
-    // Player Buffs
-    allPossibleBuffs.push_back({"Heal", "Restore 100 HP", BuffType::PLAYER_HEAL_FLAT, 100.0f});
-    allPossibleBuffs.push_back({"Heal", "Restore 30% Max HP", BuffType::PLAYER_HEAL_PERC_MAX, 30.0f});
-    allPossibleBuffs.push_back({"Heal", "Restore 60% Lost HP", BuffType::PLAYER_HEAL_PERC_LOST, 60.0f});
-    allPossibleBuffs.push_back({"Max HP+", "+50 Max Health", BuffType::PLAYER_MAX_HEALTH_FLAT, 50.0f});
-    allPossibleBuffs.push_back({"Max HP+", "+25% Max Health", BuffType::PLAYER_MAX_HEALTH_PERC_MAX, 25.0f});
-    allPossibleBuffs.push_back({"Max HP+", "+50% Current HP to Max", BuffType::PLAYER_MAX_HEALTH_PERC_CUR, 50.0f});
-    allPossibleBuffs.push_back({"Lifesteal+", "+1% Lifesteal", BuffType::PLAYER_LIFESTEAL, 1.0f});
+    if (fireSpellComp && isFireLv0) {
+        grantBuffs.push_back({"Fire Vortex", "Grants Fire Vortex", BuffType::FIRE_SPELL_PROJ_PLUS_1, 5.0f}); 
+    }
+    if (starSpellComp && isStarLv0) { 
+        grantBuffs.push_back({"Starfall", "Grants Starfall", BuffType::STAR_SPELL_PROJ_PLUS_1, 5.0f}); 
+    }
 
-    // Weapon Buffs
+    std::vector<BuffInfo> randomBuffPool;
+
+    randomBuffPool.push_back({"Heal", "Restore 100 HP", BuffType::PLAYER_HEAL_FLAT, 100.0f});
+    randomBuffPool.push_back({"Heal", "Restore 30% Max HP", BuffType::PLAYER_HEAL_PERC_MAX, 30.0f});
+    randomBuffPool.push_back({"Heal", "Restore 60% Lost HP", BuffType::PLAYER_HEAL_PERC_LOST, 60.0f});
+    randomBuffPool.push_back({"Max HP+", "+50 Max Health", BuffType::PLAYER_MAX_HEALTH_FLAT, 50.0f});
+    randomBuffPool.push_back({"Max HP+", "+25% Max Health", BuffType::PLAYER_MAX_HEALTH_PERC_MAX, 25.0f});
+    randomBuffPool.push_back({"Max HP+", "+50% Current HP to Max", BuffType::PLAYER_MAX_HEALTH_PERC_CUR, 50.0f});
+    randomBuffPool.push_back({"Lifesteal+", "+1% Lifesteal", BuffType::PLAYER_LIFESTEAL, 1.0f});
+
     if (weaponComp) {
-        allPossibleBuffs.push_back({"Main Weapon Dmg+", "+10% Wpn Damage", BuffType::WEAPON_DAMAGE_FLAT, 10.0f});
+        randomBuffPool.push_back({"Main Weapon Dmg+", "+10% Wpn Damage", BuffType::WEAPON_DAMAGE_FLAT, 10.0f}); 
         int currentDmg = weaponComp->getDamage();
         std::stringstream randDesc;
         if (currentDmg > 0) {
             int minIncrease = std::max(1, static_cast<int>(currentDmg * 0.01f)); int maxIncrease = std::max(1, static_cast<int>(currentDmg * 0.20f));
             randDesc << "+" << minIncrease << "-" << maxIncrease << " Wpn Damage";
         } else { randDesc << "+(1-20)% Wpn Damage"; }
-        allPossibleBuffs.push_back({"Main Weapon Dmg+", randDesc.str(), BuffType::WEAPON_DAMAGE_RAND_PERC, 0.0f});
-        allPossibleBuffs.push_back({"Main Weapon FireRate+", "-10% Fire Delay", BuffType::WEAPON_FIRE_RATE, 10.0f});
-        allPossibleBuffs.push_back({"Main Weapon Pierce+", "+1 Wpn Pierce", BuffType::WEAPON_PIERCE, 1.0f});
-        if (currentWeaponLevel >= 0 && currentWeaponLevel % 5 == 4) { allPossibleBuffs.push_back({"Main Weapon Spread+", "+1 Spread (DMG -30%)", BuffType::WEAPON_PROJ_PLUS_1_DMG_MINUS_30, 0.0f}); }
-        allPossibleBuffs.push_back({"Main Weapon Burst+", "+1 Main Weapon Burst", BuffType::WEAPON_BURST_COUNT, 1.0f});
+        randomBuffPool.push_back({"Main Weapon Dmg+", randDesc.str(), BuffType::WEAPON_DAMAGE_RAND_PERC, 0.0f});
+        randomBuffPool.push_back({"Main Weapon FireRate+", "-10% Fire Delay", BuffType::WEAPON_FIRE_RATE, 10.0f});
+        randomBuffPool.push_back({"Main Weapon Pierce+", "+1 Wpn Pierce", BuffType::WEAPON_PIERCE, 1.0f});
+        if (currentWeaponLevel >= 0 && currentWeaponLevel % 5 == 4) { 
+             randomBuffPool.push_back({"Main Weapon Spread+", "+1 Spread (DMG -30%)", BuffType::WEAPON_PROJ_PLUS_1_DMG_MINUS_30, 0.0f});
+        }
+        randomBuffPool.push_back({"Main Weapon Burst+", "+1 Main Weapon Burst", BuffType::WEAPON_BURST_COUNT, 1.0f});
     }
 
-    // Fire Spell Buffs
-    if (fireSpellComp) {
+    if (fireSpellComp && !isFireLv0) { 
         int fireDmgIncrease = std::max(1, 1 * currentLevel); std::stringstream fireDesc; fireDesc << "+" << fireDmgIncrease << " Fire Damage";
-        allPossibleBuffs.push_back({"Fire Dmg+", fireDesc.str(), BuffType::FIRE_SPELL_DAMAGE, 0.0f});
-        allPossibleBuffs.push_back({"Fire Vortex CDR", "-10% Fire Vortex Cooldown", BuffType::FIRE_SPELL_COOLDOWN, 10.0f});
-        allPossibleBuffs.push_back({"Fire Vortex Burst+", "+1 Fire Burst", BuffType::FIRE_SPELL_PROJ_PLUS_1, 1.0f});
+        randomBuffPool.push_back({"Fire Dmg+", fireDesc.str(), BuffType::FIRE_SPELL_DAMAGE, 0.0f}); 
+        randomBuffPool.push_back({"Fire Vortex CDR", "-10% Fire Vortex Cooldown", BuffType::FIRE_SPELL_COOLDOWN, 10.0f});
+        randomBuffPool.push_back({"Fire Vortex Burst+", "+1 Fire Burst", BuffType::FIRE_SPELL_PROJ_PLUS_1, 1.0f});
     }
 
-    // Star Spell Buffs
-    if (starSpellComp) {
+    if (starSpellComp && !isStarLv0) { 
         int starDmgIncrease = std::max(1, 3 * currentLevel); std::stringstream starDesc; starDesc << "+" << starDmgIncrease << " Star Damage";
-        allPossibleBuffs.push_back({"Starfall Dmg+", starDesc.str(), BuffType::STAR_SPELL_DAMAGE, 0.0f});
-        allPossibleBuffs.push_back({"Starfall Cooldown", "-10% Star Cooldown", BuffType::STAR_SPELL_COOLDOWN, 10.0f});
-        allPossibleBuffs.push_back({"Starfall Shot", "+1 Star", BuffType::STAR_SPELL_PROJ_PLUS_1, 1.0f});
+        randomBuffPool.push_back({"Starfall Dmg+", starDesc.str(), BuffType::STAR_SPELL_DAMAGE, 0.0f}); 
+        randomBuffPool.push_back({"Starfall Cooldown", "-10% Star Cooldown", BuffType::STAR_SPELL_COOLDOWN, 10.0f});
+        randomBuffPool.push_back({"Starfall Shot", "+1 Star", BuffType::STAR_SPELL_PROJ_PLUS_1, 1.0f});
     }
 
-    // Select Random Buffs
-    int numPossible = allPossibleBuffs.size();
-    if (numPossible == 0) { std::cerr << "No possible buffs generated!" << std::endl; return; }
-    std::vector<int> chosenIndices;
-    int buffsToOffer = std::min(4, numPossible);
-    while(currentBuffOptions.size() < buffsToOffer && chosenIndices.size() < (size_t)numPossible) {
-        int randIndex = std::rand() % numPossible;
-        bool alreadyChosen = false;
-        for(int chosen : chosenIndices) if (chosen == randIndex) { alreadyChosen = true; break; }
-        if (!alreadyChosen) { chosenIndices.push_back(randIndex); currentBuffOptions.push_back(allPossibleBuffs[randIndex]); }
-        if (chosenIndices.size() >= (size_t)numPossible && currentBuffOptions.size() < buffsToOffer) break; // Avoid infinite loop if fewer than 4 buffs possible
+    const int totalBuffsToOffer = 4;
+    currentBuffOptions = grantBuffs; 
+
+    int randomSlotsNeeded = totalBuffsToOffer - currentBuffOptions.size();
+    randomSlotsNeeded = std::max(0, randomSlotsNeeded); 
+
+    int numPossibleRandom = randomBuffPool.size();
+    int randomSlotsToFill = std::min(randomSlotsNeeded, numPossibleRandom); 
+
+    if (randomSlotsToFill > 0 && numPossibleRandom > 0) {
+        std::vector<int> chosenIndices;
+
+        while (chosenIndices.size() < static_cast<size_t>(randomSlotsToFill)) {
+            int randIndex = std::rand() % numPossibleRandom;
+            bool alreadyChosen = false;
+            for (int chosen : chosenIndices) { if (chosen == randIndex) { alreadyChosen = true; break; } }
+
+            if (!alreadyChosen) {
+                chosenIndices.push_back(randIndex);
+                currentBuffOptions.push_back(randomBuffPool[randIndex]); 
+            }
+
+            if (chosenIndices.size() >= static_cast<size_t>(numPossibleRandom)) break; 
+
+            static int safetyCounter = 0; 
+            if (++safetyCounter > numPossibleRandom * 10) { 
+                std::cerr << "Warning: Buff selection loop safety break after " << safetyCounter << " attempts." << std::endl;
+                safetyCounter = 0; 
+                break;
+            }
+        }
     }
 
-    // Replace with "Get Spell" if level 0
-    for (BuffInfo& offeredBuff : currentBuffOptions) {
-        bool isAnyFireSpellBuff = ( offeredBuff.type >= BuffType::FIRE_SPELL_DAMAGE && offeredBuff.type <= BuffType::FIRE_SPELL_PROJ_PLUS_1 );
-        if (isFireLv0 && isAnyFireSpellBuff) {
-            offeredBuff.name = "Fire Vortex"; offeredBuff.description = "Grants Fire Vortex"; offeredBuff.type = BuffType::FIRE_SPELL_PROJ_PLUS_1; offeredBuff.amount = 5.0f; continue;
-        }
-        bool isAnyStarSpellBuff = ( offeredBuff.type >= BuffType::STAR_SPELL_DAMAGE && offeredBuff.type <= BuffType::STAR_SPELL_PROJ_PLUS_1 );
-        if (isStarLv0 && isAnyStarSpellBuff) {
-            offeredBuff.name = "Starfall"; offeredBuff.description = "Grants Starfall"; offeredBuff.type = BuffType::STAR_SPELL_PROJ_PLUS_1; offeredBuff.amount = 5.0f;
-        }
-    }
 }
 
 void Game::applySelectedBuff(int index) {
@@ -1051,7 +1087,7 @@ void Game::applySelectedBuff(int index) {
 
     bool buffApplied = false;
     switch (selectedBuff.type) {
-        // Player Buffs
+
         case BuffType::PLAYER_HEAL_FLAT: if (healthComp) { healthComp->heal(intAmount); buffApplied = true; } break;
         case BuffType::PLAYER_HEAL_PERC_MAX: if (healthComp) { int heal = static_cast<int>(healthComp->getMaxHealth() * (floatAmount / 100.0f)); healthComp->heal(heal); buffApplied = true; } break;
         case BuffType::PLAYER_HEAL_PERC_LOST: if (healthComp) { int lostHP = healthComp->getMaxHealth() - healthComp->getHealth(); int heal = static_cast<int>(lostHP * (floatAmount / 100.0f)); healthComp->heal(heal); buffApplied = true; } break;
@@ -1060,20 +1096,17 @@ void Game::applySelectedBuff(int index) {
         case BuffType::PLAYER_MAX_HEALTH_PERC_CUR: if (healthComp) { int increase = static_cast<int>(healthComp->getHealth() * (floatAmount / 100.0f)); healthComp->setMaxHealth(healthComp->getMaxHealth() + increase); healthComp->heal(increase); buffApplied = true; } break;
         case BuffType::PLAYER_LIFESTEAL: playerManager->setLifestealPercentage(playerManager->getLifestealPercentage() + floatAmount); buffApplied = true; break;
 
-        // Weapon Buffs
         case BuffType::WEAPON_DAMAGE_FLAT: if (weaponComp) { int increase = std::max(1, static_cast<int>(weaponComp->getDamage() * 0.10f)); weaponComp->increaseDamage(increase); weaponComp->incrementLevel(); buffApplied = true; } break;
         case BuffType::WEAPON_DAMAGE_RAND_PERC: if (weaponComp) { int increase = std::max(1, static_cast<int>(weaponComp->getDamage() * ((rand() % 20 + 1) / 100.0f))); weaponComp->increaseDamage(increase); weaponComp->incrementLevel(); buffApplied = true; } break;
         case BuffType::WEAPON_FIRE_RATE: if (weaponComp) { weaponComp->decreaseFireRatePercentage(floatAmount); weaponComp->incrementLevel(); buffApplied = true; } break;
         case BuffType::WEAPON_PIERCE: if (weaponComp) { weaponComp->increasePierce(intAmount); weaponComp->incrementLevel(); buffApplied = true; } break;
         case BuffType::WEAPON_BURST_COUNT: if(weaponComp) { weaponComp->increaseBurstCount(intAmount); weaponComp->incrementLevel(); buffApplied = true; } break;
-        case BuffType::WEAPON_PROJ_PLUS_1_DMG_MINUS_30: if (weaponComp) { int damageReduction = static_cast<int>(weaponComp->getDamage() * 0.30f); weaponComp->increaseDamage(-damageReduction); weaponComp->increaseProjectileCount(1); weaponComp->incrementLevel(); buffApplied = true; } break;
+        case BuffType::WEAPON_PROJ_PLUS_1_DMG_MINUS_30: if (weaponComp) { int damageReduction = static_cast<int>(weaponComp->getDamage() * 0.30f); weaponComp->increaseDamage(-damageReduction); weaponComp->increaseProjectileCount(1); weaponComp->increaseSpread(15.0f); weaponComp->incrementLevel(); buffApplied = true; } break;
 
-        // Fire Spell Buffs
         case BuffType::FIRE_SPELL_DAMAGE: if (fireSpellComp && playerManager) { int increase = std::max(1, 1 * playerManager->getLevel()); fireSpellComp->increaseDamage(increase); fireSpellComp->incrementLevel(); buffApplied = true; } break;
         case BuffType::FIRE_SPELL_COOLDOWN: if (fireSpellComp) { fireSpellComp->decreaseCooldownPercentage(floatAmount); fireSpellComp->incrementLevel(); buffApplied = true; } break;
         case BuffType::FIRE_SPELL_PROJ_PLUS_1: if (fireSpellComp) { int amountToAdd = (fireSpellComp->getLevel() == 0) ? static_cast<int>(selectedBuff.amount) : 1; fireSpellComp->increaseProjectileCount(amountToAdd); fireSpellComp->incrementLevel(); buffApplied = true; } break;
 
-        // Star Spell Buffs
         case BuffType::STAR_SPELL_DAMAGE: if (starSpellComp && playerManager) { int increase = std::max(1, 3 * playerManager->getLevel()); starSpellComp->increaseDamage(increase); starSpellComp->incrementLevel(); buffApplied = true; } break;
         case BuffType::STAR_SPELL_COOLDOWN: if (starSpellComp) { starSpellComp->decreaseCooldownPercentage(floatAmount); starSpellComp->incrementLevel(); buffApplied = true; } break;
         case BuffType::STAR_SPELL_PROJ_PLUS_1: if (starSpellComp) { int amountToAdd = (starSpellComp->getLevel() == 0) ? static_cast<int>(selectedBuff.amount) : 1; starSpellComp->increaseProjectileCount(amountToAdd); starSpellComp->incrementLevel(); buffApplied = true; } break;
@@ -1105,8 +1138,6 @@ void Game::exitBuffSelection() {
     }
 }
 
-// --- State Management ---
-
 void Game::togglePause() {
     if (currentState == GameState::Playing) {
         currentState = GameState::Paused;
@@ -1121,8 +1152,6 @@ void Game::togglePause() {
         if (Mix_PausedMusic()) Mix_ResumeMusic();
     }
 }
-
-// --- Audio ---
 
 void Game::setMusicVolume(int volume) {
     musicVolume = std::max(0, std::min(volume, MIX_MAX_VOLUME));
@@ -1147,10 +1176,8 @@ void Game::toggleMute(bool isMusic) {
         if (!wasMuted) { storedSfxVolumePause = Game::sfxVolume; Game::setSfxVolume(0); }
         else { Game::setSfxVolume(storedSfxVolumePause > 0 ? storedSfxVolumePause : MIX_MAX_VOLUME / 4); storedSfxVolumePause = Game::getSfxVolume(); }
     }
-    calculatePauseLayout(); // Update slider positions after mute toggle
+    calculatePauseLayout(); 
 }
-
-// --- Helpers ---
 
 Entity& Game::getPlayer() {
     if (!playerEntity) {
@@ -1234,4 +1261,3 @@ std::vector<SDL_Rect> Game::getBuffButtonRects() {
     for (int i = 0; i < numButtons; ++i) { rects[i] = {startX + i * (boxW + gap), boxOffsetY, boxW, boxH}; }
     return rects;
 }
-

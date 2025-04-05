@@ -22,7 +22,7 @@ public:
     void update();
     void render();
     void clean();
-    Scene* getScene(SceneType type); // Added method declaration
+    Scene* getScene(SceneType type);
     
 private:
     std::map<SceneType, std::unique_ptr<Scene>> scenes;

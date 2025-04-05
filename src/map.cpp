@@ -1,5 +1,3 @@
-// Modify src/map.cpp
-
 #include "map.h"
 #include "game.h"
 #include "constants.h"
@@ -11,7 +9,6 @@
 #include <vector>
 #include <string>
 
-
 Map::Map(Manager& manager, std::string tID, int mscale, int tsize)
  : manager_ref(manager), texID(std::move(tID)), mapscale(mscale), tileSize(tsize)
 {
@@ -20,8 +17,7 @@ Map::Map(Manager& manager, std::string tID, int mscale, int tsize)
 
 Map::~Map() { }
 
-// Updated LoadMap definition
-void Map::LoadMap(std::string path, int sizeX, int sizeY, int griWidth, std::vector<Vector2D>& outSpawnPoints) { // Added reference param
+void Map::LoadMap(std::string path, int sizeX, int sizeY, int griWidth, std::vector<Vector2D>& outSpawnPoints) { 
     std::ifstream mapFile(path);
     if (!mapFile.is_open()) {
          std::cerr << "Error: Could not open map file: " << path << std::endl;
@@ -30,10 +26,8 @@ void Map::LoadMap(std::string path, int sizeX, int sizeY, int griWidth, std::vec
     std::string line;
     std::vector<std::vector<int>> mapData;
 
-    // Clear the output vector at the start
     outSpawnPoints.clear();
 
-    // --- Load Tile Data (Pass 1) ---
     while (std::getline(mapFile, line)) {
         if (line.empty() || line[0] == '#') continue;
         std::istringstream ss(line);
@@ -44,7 +38,7 @@ void Map::LoadMap(std::string path, int sizeX, int sizeY, int griWidth, std::vec
              try {
                  tileCode = std::stoi(value);
                  row.push_back(tileCode);
-             } catch (const std::exception& e) { // Catch standard exceptions
+             } catch (const std::exception& e) { 
                  std::cerr << "Map Load Error: Invalid value '" << value << "' (" << e.what() << "). Skipping row." << std::endl;
                  row.clear();
                  break;
@@ -55,9 +49,8 @@ void Map::LoadMap(std::string path, int sizeX, int sizeY, int griWidth, std::vec
         }
     }
 
-    // Add Tiles and populate outSpawnPoints based on mapData
-    for (int y = 0; y < sizeY && y < mapData.size(); ++y) {
-        for (int x = 0; x < sizeX && x < mapData[y].size(); ++x) {
+    for (int y = 0; y < sizeY && y < static_cast<int>(mapData.size()); ++y) {
+        for (int x = 0; x < sizeX && x < static_cast<int>(mapData[y].size()); ++x) {
             int tileCode = mapData[y][x];
             if (tileCode < 0) continue;
 
@@ -65,38 +58,36 @@ void Map::LoadMap(std::string path, int sizeX, int sizeY, int griWidth, std::vec
             int srcY = tileCode / griWidth;
             AddTile(srcX * tileSize, srcY * tileSize, x * scaledSize, y * scaledSize);
 
-             // Store the position of '1' tiles (assuming '1' is designated spawn area)
              if (tileCode == 10|| tileCode == 11 || tileCode == 12 || tileCode == 13) {
-                 // --- UNCOMMENT and use the passed reference ---
+
                  outSpawnPoints.emplace_back(static_cast<float>(x * scaledSize), static_cast<float>(y * scaledSize));
              }
         }
     }
 
-     std::cout << "Map loaded. Found " << outSpawnPoints.size() << " spawn points." << std::endl; // Debug output
+     std::cout << "Map loaded. Found " << outSpawnPoints.size() << " spawn points." << std::endl; 
 
-    // --- Load Collider Data (Pass 2 - Assuming separate section or re-read) ---
     mapFile.clear();
     mapFile.seekg(0);
     int currentY = 0;
     while (std::getline(mapFile, line)) {
-         if (line.empty() || line[0] == '#') continue;
-         if (currentY >= sizeY) break;
+        if (line.empty() || line[0] == '#') continue;
+        if (currentY >= sizeY) break;
         std::istringstream ss(line);
         std::string value;
         int currentX = 0;
-         while (std::getline(ss, value, ',')) {
-              if (currentX >= sizeX) break;
-             if (!mapData.empty() && currentY < mapData.size() && currentX < mapData[currentY].size()) {
-                  if (mapData[currentY][currentX] == 6 || mapData[currentY][currentX] == 2 || mapData[currentY][currentX] == 4 || mapData[currentY][currentX] == 1 ||mapData[currentY][currentX] == 8 || mapData[currentY][currentX] == 3 || mapData[currentY][currentX] == 5) { // Check if this tile code was '2'
-                      auto& tcol(manager_ref.addEntity());
-                      tcol.addComponent<ColliderComponent>("terrain", currentX * scaledSize, currentY * scaledSize, scaledSize);
-                      tcol.addGroup(Game::groupColliders);
-                  }
-             }
-             currentX++;
-         }
-         currentY++;
+        while (std::getline(ss, value, ',')) {
+            if (currentX >= sizeX) break;
+            if (!mapData.empty() && currentY < static_cast<int>(mapData.size()) && currentX < static_cast<int>(mapData[currentY].size())) {
+                if (mapData[currentY][currentX] == 6 || mapData[currentY][currentX] == 2 || mapData[currentY][currentX] == 4 || mapData[currentY][currentX] == 1 ||mapData[currentY][currentX] == 8 || mapData[currentY][currentX] == 3 || mapData[currentY][currentX] == 5) { 
+                    auto& tcol(manager_ref.addEntity());
+                    tcol.addComponent<ColliderComponent>("terrain", currentX * scaledSize, currentY * scaledSize, scaledSize);
+                    tcol.addGroup(Game::groupColliders);
+                }
+            }
+            currentX++;
+        }
+        currentY++;
     }
 
     mapFile.close();

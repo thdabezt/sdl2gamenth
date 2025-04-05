@@ -1,7 +1,7 @@
 #include "AssetManager.h"
 #include "ECS/Components.h"
-#include <iostream> // For error reporting
-#include <SDL_mixer.h> // For sound effects and music
+#include <iostream> 
+#include <SDL_mixer.h> 
 AssetManager::AssetManager(Manager* Man) : manager(Man){
 
 }
@@ -9,19 +9,19 @@ AssetManager::AssetManager(Manager* Man) : manager(Man){
 AssetManager::~AssetManager(){
 
 }
-void AssetManager::CreateProjectile(Vector2D pos, Vector2D vel, int damage, int size, std::string id, int pierce) { // Removed range
+void AssetManager::CreateProjectile(Vector2D pos, Vector2D vel, int damage, int size, std::string id, int pierce) { 
     auto& projectile(manager->addEntity());
     projectile.addComponent<TransformComponent>(pos.x, pos.y, size, size, 1);
     projectile.addComponent<SpriteComponent>(id);
-     // --- ADD ProjectileComponent and Set Spinning Flag ---
+
     projectile.addComponent<ProjectileComponent>(damage, vel, pierce);
-     if (id == "boss_projectile") { // Check the asset ID
+     if (id == "boss_projectile") { 
          if (projectile.hasComponent<ProjectileComponent>()) {
-             projectile.getComponent<ProjectileComponent>().isSpinning = true; // Sets flag on the FIRST component
+             projectile.getComponent<ProjectileComponent>().isSpinning = true; 
 
          }
      }
-     // --- END ---
+
     projectile.addComponent<ColliderComponent>("projectile");
     projectile.addGroup(Game::groupProjectiles);
 }
@@ -30,7 +30,7 @@ void AssetManager::AddTexture(std::string id, const char* path){
 
     SDL_Texture* loadedTexture = TextureManager::LoadTexture(path);
     if (loadedTexture == nullptr) {
-        std::cerr << "ERROR: AssetManager failed to load texture for ID: '" << id << "'" << std::endl; // Log failure
+        std::cerr << "ERROR: AssetManager failed to load texture for ID: '" << id << "'" << std::endl; 
     } else {
 
         textures.emplace(id, loadedTexture);

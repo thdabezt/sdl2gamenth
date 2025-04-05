@@ -12,7 +12,7 @@ public:
     void update() override;
     void render() override;
     void clean() override;
-    void resetGame(); // Added method declaration
+    void resetGame();
     
 private:
     Game* game;

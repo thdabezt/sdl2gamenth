@@ -1,46 +1,39 @@
-// --- Includes ---
 #include "UI.h"
-#include "game.h"       // For Game::instance, AssetManager access
+#include "game.h"       
 #include "Vector2D.h"
-#include "ECS/Player.h" // For Player class
-#include "ECS/Components.h" // For WeaponComponent, SpellComponent, etc.
+#include "ECS/Player.h" 
+#include "ECS/Components.h" 
 #include <iostream>
-#include <iomanip>      // For std::fixed, std::setprecision
-#include <sstream>      // For std::stringstream
+#include <iomanip>      
+#include <sstream>      
 #include <vector>
 #include <string>
-#include <algorithm>    // For std::toupper
-#include <cmath>        // For std::floor, std::max
-
-// --- Constructor & Destructor ---
+#include <algorithm>    
+#include <cmath>        
 
 UIManager::UIManager(SDL_Renderer* rend) : renderer(rend), font(nullptr), largeFont(nullptr), uiFont(nullptr), uiHeaderFont(nullptr), bossHealthFont(nullptr) {
     if (!TTF_WasInit() && TTF_Init() == -1) {
         std::cerr << "SDL_ttf could not initialize! SDL_ttf Error: " << TTF_GetError() << std::endl;
-        // Consider throwing an exception or setting an error state
+
     }
 }
 
 UIManager::~UIManager() {
-    clearCache(); // Clear texture cache first
+    clearCache(); 
 
-    // Free fonts safely
     if (font) { TTF_CloseFont(font); font = nullptr; }
     if (largeFont) { TTF_CloseFont(largeFont); largeFont = nullptr; }
     if (uiFont) { TTF_CloseFont(uiFont); uiFont = nullptr; }
     if (uiHeaderFont) { TTF_CloseFont(uiHeaderFont); uiHeaderFont = nullptr; }
 
-    // Avoid double-freeing bossHealthFont if it's pointing to another font
     if (bossHealthFont && bossHealthFont != uiHeaderFont && bossHealthFont != largeFont && bossHealthFont != font && bossHealthFont != uiFont) {
         TTF_CloseFont(bossHealthFont);
     }
     bossHealthFont = nullptr;
 }
 
-// --- Initialization ---
-
 void UIManager::init() {
-    // Load fonts with error checking and fallbacks
+
     font = TTF_OpenFont("assets/font.ttf", 14);
     largeFont = TTF_OpenFont("assets/font.ttf", 20);
     uiFont = TTF_OpenFont("assets/font.ttf", 12);
@@ -51,30 +44,28 @@ void UIManager::init() {
     if (!largeFont) std::cerr << "Failed to load largeFont (20pt)." << std::endl;
     if (!uiFont) {
         std::cerr << "Failed to load uiFont (12pt)! Using font as fallback." << std::endl;
-        uiFont = font; // Fallback
+        uiFont = font; 
     }
     if (!uiHeaderFont) {
         std::cerr << "Failed to load uiHeaderFont (14pt)! Using largeFont as fallback." << std::endl;
-        uiHeaderFont = largeFont; // Fallback
+        uiHeaderFont = largeFont; 
     }
      if (!bossHealthFont) {
          std::cerr << "Failed to load boss health font (24pt)! Using uiHeaderFont/largeFont as fallback." << std::endl;
-         bossHealthFont = uiHeaderFont ? uiHeaderFont : largeFont; // Fallback chain
+         bossHealthFont = uiHeaderFont ? uiHeaderFont : largeFont; 
      }
 
-    // Check if essential fonts loaded AFTER attempting all loads and fallbacks
     if (!hasFonts()) {
          std::cerr << "UI Warning: One or more essential fonts failed to load, UI text may not display correctly." << std::endl;
     }
 
-    // Load Icons via AssetManager
     if (Game::instance && Game::instance->assets) {
         weaponIconTex = Game::instance->assets->GetTexture("weapon_icon");
         fireIconTex = Game::instance->assets->GetTexture("fire_icon");
         starIconTex = Game::instance->assets->GetTexture("star_icon");
         healthIconTex = Game::instance->assets->GetTexture("health_icon");
         lifestealIconTex = Game::instance->assets->GetTexture("lifesteal_icon");
-        maxHealthIconTex = healthIconTex; // Reuse health icon
+        maxHealthIconTex = healthIconTex; 
         defaultBuffIconTex = Game::instance->assets->GetTexture("default_buff_icon");
 
     } else {
@@ -82,21 +73,16 @@ void UIManager::init() {
     }
 }
 
-// --- Font Check --- 
-
 bool UIManager::hasFonts() const {
-    // Check the essential fonts needed for standard UI rendering
-    // Adjust this check based on which fonts are truly critical
+
     return uiFont != nullptr && uiHeaderFont != nullptr && largeFont != nullptr;
 }
 
-// --- Text Rendering ---
-
 SDL_Texture* UIManager::renderTextToTexture(const std::string& text, SDL_Color color, TTF_Font* fontToUse, int& width, int& height) {
-    width = 0; height = 0; // Default values
-    if (!fontToUse) fontToUse = uiFont; // Default font
+    width = 0; height = 0; 
+    if (!fontToUse) fontToUse = uiFont; 
     if (!fontToUse || text.empty() || !renderer) {
-        if (text.empty()) return nullptr; // Don't log error for empty string
+        if (text.empty()) return nullptr; 
         if (!fontToUse) std::cerr << "renderTextToTexture Error: fontToUse is null!" << std::endl;
         if (!renderer) std::cerr << "renderTextToTexture Error: renderer is null!" << std::endl;
         return nullptr;
@@ -153,14 +139,11 @@ void UIManager::drawTextWithOutline(const std::string& text, int x, int y, SDL_C
     }
     SDL_DestroyTexture(outlineTexture);
 
-    // Render foreground text using existing drawText function
     drawText(text, x, y, textColor, fontToUse);
 }
 
-// --- UI Element Rendering ---
-
 void UIManager::renderPlayerHealthBar(Player* player, int& yPos) {
-    if (!player || !renderer || !hasFonts()) return; // Check fonts
+    if (!player || !renderer || !hasFonts()) return; 
 
     int xPos = UI_PADDING;
     SDL_Color white = {255, 255, 255, 255};
@@ -169,18 +152,18 @@ void UIManager::renderPlayerHealthBar(Player* player, int& yPos) {
     drawText("HEALTH", xPos, yPos, labelColor, uiHeaderFont);
     yPos += STAT_LINE_HEIGHT;
 
-    SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255); // Background
+    SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255); 
     SDL_Rect bgRect = {xPos - 1, yPos - 1, HEALTH_BAR_WIDTH + 2, HEALTH_BAR_HEIGHT + 2};
     SDL_RenderFillRect(renderer, &bgRect);
 
-    SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255); // Border
+    SDL_SetRenderDrawColor(renderer, 180, 180, 180, 255); 
     SDL_RenderDrawRect(renderer, &bgRect);
 
     int maxHP = player->getMaxHealth();
     float healthPercent = (maxHP > 0) ? static_cast<float>(player->getHealth()) / maxHP : 0.0f;
     int currentBarWidth = static_cast<int>(HEALTH_BAR_WIDTH * healthPercent);
     int r = static_cast<int>(255 * (1.0f - healthPercent)); int g = static_cast<int>(255 * healthPercent);
-    SDL_SetRenderDrawColor(renderer, r, g, 0, 255); // Fill (Gradient)
+    SDL_SetRenderDrawColor(renderer, r, g, 0, 255); 
     SDL_Rect healthRect = {xPos, yPos, currentBarWidth, HEALTH_BAR_HEIGHT};
     SDL_RenderFillRect(renderer, &healthRect);
 
@@ -192,7 +175,7 @@ void UIManager::renderPlayerHealthBar(Player* player, int& yPos) {
 }
 
 void UIManager::renderExpBar(Player* player, int& yPos) {
-    if (!player || !renderer || !hasFonts()) return; // Check fonts
+    if (!player || !renderer || !hasFonts()) return; 
 
     int xPos = UI_PADDING;
     SDL_Color white = {255, 255, 255, 255};
@@ -202,16 +185,16 @@ void UIManager::renderExpBar(Player* player, int& yPos) {
     drawText(ss_lvl.str(), xPos, yPos, purple, uiHeaderFont);
     yPos += STAT_LINE_HEIGHT;
 
-    SDL_SetRenderDrawColor(renderer, 30, 10, 40, 255); // Background
+    SDL_SetRenderDrawColor(renderer, 30, 10, 40, 255); 
     SDL_Rect bgRect = {xPos - 1, yPos - 1, HEALTH_BAR_WIDTH + 2, HEALTH_BAR_HEIGHT + 2};
     SDL_RenderFillRect(renderer, &bgRect);
 
-    SDL_SetRenderDrawColor(renderer, 140, 80, 200, 255); // Border
+    SDL_SetRenderDrawColor(renderer, 140, 80, 200, 255); 
     SDL_RenderDrawRect(renderer, &bgRect);
 
     float expPercent = player->getExperiencePercentage();
     int currentBarWidth = static_cast<int>(HEALTH_BAR_WIDTH * expPercent);
-    SDL_SetRenderDrawColor(renderer, 130, 30, 240, 255); // Fill
+    SDL_SetRenderDrawColor(renderer, 130, 30, 240, 255); 
     SDL_Rect expRect = {xPos, yPos, currentBarWidth, HEALTH_BAR_HEIGHT};
     SDL_RenderFillRect(renderer, &expRect);
 
@@ -223,7 +206,7 @@ void UIManager::renderExpBar(Player* player, int& yPos) {
 }
 
 void UIManager::renderWeaponStats(Player* player, int& yPos) {
-    if (!player || !renderer || !hasFonts()) return; // Check fonts
+    if (!player || !renderer || !hasFonts()) return; 
     Entity* playerEntity = nullptr;
     try { playerEntity = &player->getEntity(); } catch (...) { return; }
     if (!playerEntity || !playerEntity->hasComponent<WeaponComponent>()) return;
@@ -232,10 +215,14 @@ void UIManager::renderWeaponStats(Player* player, int& yPos) {
     int xPos = UI_PADDING;
     SDL_Color white = {255, 255, 255, 255};
     SDL_Color gold = {255, 215, 0, 255};
+    SDL_Color black = {0, 0, 0, 255}; 
 
-    std::string weaponName = weapon.getTag(); if (!weaponName.empty()) weaponName[0] = std::toupper(weaponName[0]);
-    std::stringstream ss_header; ss_header << weaponName << " - Lv." << weapon.getLevel();
-    drawText(ss_header.str(), xPos, yPos, gold, uiHeaderFont);
+    std::string weaponName = "Main Weapon"; 
+    std::stringstream ss_header;
+    ss_header << weaponName << " - Lv." << weapon.getLevel();
+
+    drawTextWithOutline(ss_header.str(), xPos, yPos, gold, black, 1, uiHeaderFont); 
+
     yPos += STAT_LINE_HEIGHT + 5;
 
     std::stringstream ss;
@@ -251,14 +238,17 @@ void UIManager::renderWeaponStats(Player* player, int& yPos) {
 }
 
 void UIManager::renderSpellStats(Player* player, int& yPos) {
-    if (!player || !renderer || !hasFonts()) return; // Check fonts
+    if (!player || !renderer || !hasFonts()) return; 
     Entity* playerEntity = nullptr;
     try { playerEntity = &player->getEntity(); } catch (...) { return; }
     if (!playerEntity) return;
 
     int xPos = UI_PADDING;
     SDL_Color white = {255, 255, 255, 255};
-    SDL_Color spellColor = {100, 150, 255, 255};
+
+    SDL_Color fireColor = fireSpellBuffColor; 
+    SDL_Color starColor = starSpellBuffColor; 
+    SDL_Color defaultSpellColor = {100, 150, 255, 255}; 
     SDL_Color getSpellColor = {180, 180, 180, 255};
 
     int spellCount = 0;
@@ -267,7 +257,19 @@ void UIManager::renderSpellStats(Player* player, int& yPos) {
             spellCount++;
             if(spellCount > 1) yPos += SECTION_PADDING / 2;
 
-            std::string spellName = spellComp->getTag(); if (!spellName.empty()) spellName[0] = std::toupper(spellName[0]);
+            std::string spellName = "";
+            SDL_Color headerColor = defaultSpellColor;
+            std::string currentTag = spellComp->getTag();
+
+            if (currentTag == "spell") { 
+                spellName = "Fire Vortex";
+                headerColor = fireColor;
+            } else if (currentTag == "star") { 
+                spellName = "Starfall";
+                headerColor = starColor;
+            } else { 
+                spellName = spellComp->getTag(); if (!spellName.empty()) spellName[0] = std::toupper(spellName[0]);
+            }
 
             if (spellComp->getLevel() == 0) {
                 std::stringstream ss_get; ss_get << "Get " << spellName;
@@ -275,7 +277,8 @@ void UIManager::renderSpellStats(Player* player, int& yPos) {
                 yPos += STAT_LINE_HEIGHT + 5;
             } else {
                 std::stringstream ss_header; ss_header << spellName << " - Lv." << spellComp->getLevel();
-                drawText(ss_header.str(), xPos, yPos, spellColor, uiHeaderFont);
+
+                drawText(ss_header.str(), xPos, yPos, headerColor, uiHeaderFont);
                 yPos += STAT_LINE_HEIGHT + 5;
 
                 std::stringstream ss;
@@ -284,21 +287,19 @@ void UIManager::renderSpellStats(Player* player, int& yPos) {
                 ss << "Cooldown: " << std::fixed << std::setprecision(1) << cooldownSec << "s"; drawText(ss.str(), xPos, yPos, white, uiFont); yPos += STAT_LINE_HEIGHT;
                 ss.str(""); ss << "Pierce: " << spellComp->getPierce(); drawText(ss.str(), xPos, yPos, white, uiFont); yPos += STAT_LINE_HEIGHT;
 
-                 if (spellComp->getTag() == "star") {
+                 if (currentTag == "star") { 
                      ss.str(""); ss << "Projectiles: " << spellComp->getProjectileCount(); drawText(ss.str(), xPos, yPos, white, uiFont); yPos += STAT_LINE_HEIGHT;
-                 } else if (spellComp->getTag() == "spell") { // Fire
-                     ss.str(""); float durationSec = (spellComp->getDuration() > 0) ? spellComp->getDuration() / 1000.0f : 0.0f;
-                     ss << "Duration: " << std::fixed << std::setprecision(1) << durationSec << "s"; drawText(ss.str(), xPos, yPos, white, uiFont); yPos += STAT_LINE_HEIGHT;
                  }
+
             }
              yPos += SECTION_PADDING;
         }
     }
-    if (spellCount == 0) yPos += SECTION_PADDING / 2; // Ensure padding even if no spells
+    if (spellCount == 0) yPos += SECTION_PADDING / 2; 
 }
 
 void UIManager::renderPlayerStats(Player* player, int& yPos) {
-    if (!player || !renderer || !hasFonts()) return; // Check fonts
+    if (!player || !renderer || !hasFonts()) return; 
 
     int xPos = UI_PADDING;
     SDL_Color white = {255, 255, 255, 255};
@@ -318,7 +319,7 @@ void UIManager::renderBossHealthBar() {
     if (!currentBossEntity || !currentBossEntity->isActive() || !currentBossEntity->hasComponent<HealthComponent>()) {
         return;
     }
-    TTF_Font* fontToUse = bossHealthFont ? bossHealthFont : uiHeaderFont; // Use fallback if needed
+    TTF_Font* fontToUse = bossHealthFont ? bossHealthFont : uiHeaderFont; 
     if (!renderer || !fontToUse) return;
 
     const HealthComponent& bossHealth = currentBossEntity->getComponent<HealthComponent>();
@@ -335,16 +336,16 @@ void UIManager::renderBossHealthBar() {
 
     SDL_Color labelColor = {230, 230, 230, 255};
 
-    SDL_SetRenderDrawColor(renderer, 50, 10, 10, 200); // Background
+    SDL_SetRenderDrawColor(renderer, 50, 10, 10, 200); 
     SDL_Rect bgRect = {barX - 2, barY - 2, barWidth + 4, barHeight + 4};
     SDL_RenderFillRect(renderer, &bgRect);
 
-    SDL_SetRenderDrawColor(renderer, 150, 40, 40, 255); // Border
+    SDL_SetRenderDrawColor(renderer, 150, 40, 40, 255); 
     SDL_RenderDrawRect(renderer, &bgRect);
 
     float healthPercent = (maxHP > 0) ? static_cast<float>(currentHP) / maxHP : 0.0f;
     int currentBarWidth = static_cast<int>(barWidth * healthPercent);
-    SDL_SetRenderDrawColor(renderer, 200, 0, 0, 255); // Fill
+    SDL_SetRenderDrawColor(renderer, 200, 0, 0, 255); 
     SDL_Rect healthRect = {barX, barY, currentBarWidth, barHeight}; 
     SDL_RenderFillRect(renderer, &healthRect);
 
@@ -353,21 +354,19 @@ void UIManager::renderBossHealthBar() {
     drawTextWithOutline(ss.str(), barX + (barWidth - textW) / 2, barY + (barHeight - textH) / 2, labelColor, {0, 0, 0, 255}, 1, fontToUse);
 }
 
-// --- Main Render Call ---
-
 void UIManager::renderUI(Player* player) {
     if (!renderer) return;
 
-    renderBossHealthBar(); // Render boss bar first (if boss exists)
+    renderBossHealthBar(); 
 
-    if (!player) return; // Stop if no player data
+    if (!player) return; 
 
-    if (!hasFonts()) { // Check fonts
-        renderSimpleUI(player); // Fallback if fonts aren't loaded
+    if (!hasFonts()) { 
+        renderSimpleUI(player); 
         return;
     }
 
-    int currentY = UI_PADDING; // Y position for player UI elements
+    int currentY = UI_PADDING; 
     renderPlayerHealthBar(player, currentY);
     renderExpBar(player, currentY);
     renderWeaponStats(player, currentY);
@@ -375,42 +374,34 @@ void UIManager::renderUI(Player* player) {
     renderPlayerStats(player, currentY);
 }
 
-// --- Fallback Rendering ---
-
 void UIManager::renderSimpleUI(Player* player) {
-    // Minimal UI without text, just bars
+
     if (!player || !renderer) return;
     int xPos = UI_PADDING; int yPos = UI_PADDING;
 
-    // Health bar
     SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255); SDL_Rect bgRectH = {xPos - 1, yPos - 1, HEALTH_BAR_WIDTH + 2, HEALTH_BAR_HEIGHT + 2}; SDL_RenderFillRect(renderer, &bgRectH);
     float healthPercent = (player->getMaxHealth() > 0) ? static_cast<float>(player->getHealth()) / player->getMaxHealth() : 0.0f;
     int currentBarWidthH = static_cast<int>(HEALTH_BAR_WIDTH * healthPercent); int r = static_cast<int>(255 * (1.0f - healthPercent)); int g = static_cast<int>(255 * healthPercent); SDL_SetRenderDrawColor(renderer, r, g, 0, 255); SDL_Rect healthRect = {xPos, yPos, currentBarWidthH, HEALTH_BAR_HEIGHT}; SDL_RenderFillRect(renderer, &healthRect);
     yPos += HEALTH_BAR_HEIGHT + SECTION_PADDING;
 
-    // Exp bar
     SDL_SetRenderDrawColor(renderer, 30, 10, 40, 255); SDL_Rect bgRectE = {xPos - 1, yPos - 1, HEALTH_BAR_WIDTH + 2, HEALTH_BAR_HEIGHT + 2}; SDL_RenderFillRect(renderer, &bgRectE);
     float expPercent = player->getExperiencePercentage(); int currentBarWidthE = static_cast<int>(HEALTH_BAR_WIDTH * expPercent); SDL_SetRenderDrawColor(renderer, 130, 30, 240, 255); SDL_Rect expRect = {xPos, yPos, currentBarWidthE, HEALTH_BAR_HEIGHT}; SDL_RenderFillRect(renderer, &expRect);
 }
 
-// --- Buff UI ---
-
 void UIManager::renderBuffSelectionUI(const std::vector<BuffInfo>& buffs, int windowWidth, int windowHeight) {
-    TTF_Font* fontToUse = font ? font : uiFont; // Use smaller font for buff text
+    TTF_Font* fontToUse = font ? font : uiFont; 
     if (!fontToUse || !largeFont || buffs.empty() || !renderer) {
          if(buffs.empty()) std::cerr << "Error: renderBuffSelectionUI called with empty buffs vector." << std::endl;
-         // Add other null checks if needed
+
         return;
     }
 
-    // Layout Calculation Constants
     const int numButtons = std::min((int)buffs.size(), 4);
     if (numButtons == 0) return;
     const int refWidth = 800, refHeight = 600;
     const int baseIconSize = 48, baseBoxW = 180, baseBoxH = 110, baseGap = 25;
     const int baseTitleOffsetY = 40, baseIconOffsetY = -100;
 
-    // Scaling
     float scaleX = static_cast<float>(windowWidth) / refWidth; float scaleY = static_cast<float>(windowHeight) / refHeight; float scaleFactor = std::min(scaleX, scaleY);
     int iconAreaSize = std::max(32, static_cast<int>(baseIconSize * scaleFactor));
     int boxW = std::max(100, static_cast<int>(baseBoxW * scaleFactor)); int boxH = std::max(75, static_cast<int>(baseBoxH * scaleFactor));
@@ -420,7 +411,6 @@ void UIManager::renderBuffSelectionUI(const std::vector<BuffInfo>& buffs, int wi
     int boxOffsetY = iconAreaY + iconAreaSize + std::max(3, static_cast<int>(5 * scaleFactor));
     int totalWidth = numButtons * boxW + (numButtons - 1) * gap; int startX = (windowWidth - totalWidth) / 2;
 
-    // Render Overlay & Title
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
     SDL_Rect fullscreen = {0, 0, windowWidth, windowHeight}; SDL_RenderFillRect(renderer, &fullscreen);
@@ -429,8 +419,7 @@ void UIManager::renderBuffSelectionUI(const std::vector<BuffInfo>& buffs, int wi
     int approxTitleWidth = static_cast<int>(300 * scaleFactor);
     drawTextWithOutline("Choose an Upgrade!", (windowWidth - approxTitleWidth) / 2, titleOffsetY, titleColor, {0, 0, 0, 255}, 2, largeFont);
 
-    // Render Buttons
-    SDL_Color textColor = {255, 255, 255, 255}; SDL_Color outlineColor = {0, 0, 0, 255};
+    SDL_Color outlineColor = {0, 0, 0, 255};
     for (int i = 0; i < numButtons; ++i) {
         int currentX = startX + i * (boxW + gap);
         SDL_Rect boxRect = {currentX, boxOffsetY, boxW, boxH};
@@ -442,15 +431,13 @@ void UIManager::renderBuffSelectionUI(const std::vector<BuffInfo>& buffs, int wi
         const BuffInfo& currentBuff = buffs[i];
         BuffType type = currentBuff.type;
 
-        // Determine Icon & Color
         if (type >= BuffType::FIRE_SPELL_DAMAGE && type <= BuffType::FIRE_SPELL_PROJ_PLUS_1) { buttonColor = fireSpellBuffColor; iconToDraw = fireIconTex; }
         else if (type >= BuffType::STAR_SPELL_DAMAGE && type <= BuffType::STAR_SPELL_PROJ_PLUS_1) { buttonColor = starSpellBuffColor; iconToDraw = starIconTex; }
         else if (type == BuffType::WEAPON_DAMAGE_FLAT || type == BuffType::WEAPON_DAMAGE_RAND_PERC || (type >= BuffType::WEAPON_FIRE_RATE && type <= BuffType::WEAPON_BURST_COUNT) || type == BuffType::WEAPON_PROJ_PLUS_1_DMG_MINUS_30) { buttonColor = weaponBuffColor; iconToDraw = weaponIconTex; }
         else if (type >= BuffType::PLAYER_HEAL_FLAT && type <= BuffType::PLAYER_MAX_HEALTH_PERC_CUR) { buttonColor = healthBuffColor; iconToDraw = healthIconTex; }
         else if (type == BuffType::PLAYER_LIFESTEAL) { buttonColor = lifeStealBuffColor; iconToDraw = lifestealIconTex; }
 
-        // Draw Icon
-        if (!iconToDraw) iconToDraw = defaultBuffIconTex; // Fallback
+        if (!iconToDraw) iconToDraw = defaultBuffIconTex; 
         if (iconToDraw) {
             int texW, texH; SDL_QueryTexture(iconToDraw, NULL, NULL, &texW, &texH);
             float wScale = (texW > 0) ? (float)iconBoundingBox.w / texW : 1.0f; float hScale = (texH > 0) ? (float)iconBoundingBox.h / texH : 1.0f;
@@ -461,13 +448,11 @@ void UIManager::renderBuffSelectionUI(const std::vector<BuffInfo>& buffs, int wi
             SDL_RenderCopy(renderer, iconToDraw, NULL, &finalIconRect);
          }
 
-        // Draw Box
         SDL_SetRenderDrawColor(renderer, buttonColor.r, buttonColor.g, buttonColor.b, buttonColor.a);
         SDL_RenderFillRect(renderer, &boxRect);
         SDL_SetRenderDrawColor(renderer, outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a);
         SDL_RenderDrawRect(renderer, &boxRect);
 
-        // Draw Text (Multi-line)
         int textWidth, textHeight;
         int textBaseY = boxRect.y + boxRect.h / 8;
         int lineSpacing = std::max(1, static_cast<int>(3 * scaleFactor));
@@ -476,18 +461,16 @@ void UIManager::renderBuffSelectionUI(const std::vector<BuffInfo>& buffs, int wi
 
         SDL_Color line1Color = {255, 255, 255, 255}; SDL_Color line2Color = {210, 210, 210, 255}; SDL_Color line3Color = {255, 255, 255, 255};
 
-        // Line 1: Buff Name
         TTF_SizeText(fontToUse, currentBuff.name.c_str(), &textWidth, &textHeight);
         drawTextWithOutline(currentBuff.name, textCenterX - textWidth / 2, currentTextY, line1Color, outlineColor, 1, fontToUse);
         currentTextY += textHeight + lineSpacing;
 
-        // Lines 2 & 3: Description
         std::string line2Text = "", line3Text = "";
         std::string fullDescription = currentBuff.description;
         size_t newlinePos = fullDescription.find('\n');
         if (newlinePos != std::string::npos) {
             line2Text = fullDescription.substr(0, newlinePos); line3Text = fullDescription.substr(newlinePos + 1);
-        } else { line3Text = fullDescription; } // Full desc on line 3 if no newline
+        } else { line3Text = fullDescription; } 
 
         if (!line2Text.empty()) {
             TTF_SizeText(fontToUse, line2Text.c_str(), &textWidth, &textHeight);
@@ -501,22 +484,19 @@ void UIManager::renderBuffSelectionUI(const std::vector<BuffInfo>& buffs, int wi
     }
 }
 
-
-// --- Helpers ---
-
 bool UIManager::isMouseInside(int mouseX, int mouseY, const SDL_Rect& rect) {
     return mouseX >= rect.x && mouseX <= rect.x + rect.w &&
            mouseY >= rect.y && mouseY <= rect.y + rect.h;
 }
 
-void UIManager::clearCache() { //Does nothing right now
+void UIManager::clearCache() { 
     for (auto& cache : textCache) { 
         if (cache.texture) {
             SDL_DestroyTexture(cache.texture);
-            cache.texture = nullptr; // Important to nullify after destroying
+            cache.texture = nullptr; 
         }
     }
-    textCache.clear(); // Clear the vector itself
+    textCache.clear(); 
 }
 
 void UIManager::setBossEntity(Entity* boss) {
