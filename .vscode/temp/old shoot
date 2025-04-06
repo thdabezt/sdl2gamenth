@@ -1,0 +1,38 @@
+    // if (currentTime > lastShotTime + 200) { // 200 ms cooldown between shots
+    
+    //     Vector2D projectilePosition = realposition;
+    //     // Calculate direction to mouse cursor
+    //     Vector2D targetPosition(mouseX, mouseY);
+    //     Vector2D direction = targetPosition - projectilePosition;
+        
+    //     // Normalize and set speed
+    //     Vector2D projectileVelocity = direction.Normalize() * 5.0f;
+        
+    //     // Debug output
+    //     std::cout << "Firing projectiles toward: (" << mouseX << ", " << mouseY << ")" << std::endl;
+        
+    //     // Create main projectile (straight ahead)
+    //     assets->CreateProjectile(projectilePosition, projectileVelocity, 500, 5, "projectile");
+        
+    //     // Create two additional projectiles at angles
+    //     const float spreadAngle = 0.2f; // Spread angle in radians (about 11.5 degrees)
+        
+    //     // Calculate left projectile velocity (rotate original velocity counterclockwise)
+    //     Vector2D leftVelocity;
+    //     leftVelocity.x = projectileVelocity.x * cos(spreadAngle) - projectileVelocity.y * sin(spreadAngle);
+    //     leftVelocity.y = projectileVelocity.x * sin(spreadAngle) + projectileVelocity.y * cos(spreadAngle);
+    //     leftVelocity = leftVelocity.Normalize() * 5.0f;
+        
+    //     // Calculate right projectile velocity (rotate original velocity clockwise)
+    //     Vector2D rightVelocity;
+    //     rightVelocity.x = projectileVelocity.x * cos(-spreadAngle) - projectileVelocity.y * sin(-spreadAngle);
+    //     rightVelocity.y = projectileVelocity.x * sin(-spreadAngle) + projectileVelocity.y * cos(-spreadAngle);
+    //     rightVelocity = rightVelocity.Normalize() * 5.0f;
+        
+    //     // Create the additional projectiles
+    //     assets->CreateProjectile(projectilePosition, leftVelocity, 500, 5, "projectile");
+    //     assets->CreateProjectile(projectilePosition, rightVelocity, 500, 5, "projectile");
+        
+    //     lastShotTime = currentTime;
+    // }
+    
